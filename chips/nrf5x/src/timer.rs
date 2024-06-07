@@ -322,13 +322,55 @@ impl Time for TimerAlarm<'_> {
 }
 
 impl<'a> Alarm<'a> for TimerAlarm<'a> {
+    // OOS - out of scope
     fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
     }
 
+    // General Notes:
+    // The TRD states that ref is needed to disambiguate case of very near
+    // and very far alarm.
+    //
+    // Case that is hard to reason about (and motivates need for ref)
+    // Consider the following |--------X-O--------| where O is now
+    // and X is the tick value the arm is to fire at. For this case,
+    // We do not know if a short alarm was set for a after now or if
+    // this is an alarm very far in the future.
+    //
+    // If this is the case of the "long timer", ref + dt  will be a
+    // "large value" and subsequently the value will be within the
+    // range of [ref, ref + dt)
+    // Example of this: |-----X-O---(REF)--| where X is (ref + dt)
+    //                  |-----X-(REF)-O----| where X is (ref + dt)
+    //
+    // In the case of the "short timer", ref + dt will be a "small value"
+    // and the value will not be within this range:
+    // Example of this: |----(REF)-X-O-----| where X is (ref + dt)
+    //
+    // The question remains, could this be simplied or done in a better way?
+    // It seems this could just be checked by seeing if REF < REF + DT to
+    // determine if it is a long vs short alarm (this probably is missing
+    // some edge cases. this might be interesting once we prove the correctness
+    // of this to see if a "simpler" calculation like this is also true. if
+    // it is not, we can then perhaps say "this is an example of what seems
+    // to be a correct solution, but fails to consider x,y,z edge cases etc".
+    // if it ends up being simpler, we can show that we found this simpler
+    // way that is logically equivalent but more easily understandable. Both
+    // seem valuable).
+
+    // Preconditions:
+    // 1. Timer is running
+    // 2. Ref <= now (reference is in the past)
+    // Things to prove:
+    // 1. enable alarm
+    // 2. If no alarm => set new alarm
+    //    If alarm => cancel previous and replace with new alarm
+    // 3.
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
+        // shut off alarm (eventhough it is still counting)
         self.disable_interrupts();
 
+        // What is the purpose of SYNC_TICS?
         const SYNC_TICS: u32 = 2;
         let regs = &*self.registers;
 
@@ -337,6 +379,7 @@ impl<'a> Alarm<'a> for TimerAlarm<'a> {
         let now = self.now();
         let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
 
+        // This logic is tricky to understand. Not immediately clear why they are doing this.
         if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
         {
             expire = earliest_possible;
