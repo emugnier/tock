@@ -27,12 +27,14 @@
 //! * Date: August 18, 2016
 
 use kernel::hil;
-use kernel::hil::time::{Alarm, Ticks, Time};
+use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+
+use vstd::prelude::*;
 
 const INSTANCES: [StaticRef<TimerRegisters>; 3] = unsafe {
     [
@@ -209,73 +211,20 @@ pub enum BitmodeValue {
     Size32Bits = 3,
 }
 
-pub trait CompareClient {
-    /// Passes a bitmask of which of the 4 compares/captures fired (0x0-0xf).
-    fn compare(&self, bitmask: u8);
-}
-
-pub struct Timer {
-    registers: StaticRef<TimerRegisters>,
-    client: OptionalCell<&'static dyn CompareClient>,
-}
-
-impl Timer {
-    pub const fn new(instance: usize) -> Timer {
-        Timer {
-            registers: INSTANCES[instance],
-            client: OptionalCell::empty(),
-        }
-    }
-
-    pub fn set_client(&self, client: &'static dyn CompareClient) {
-        self.client.set(client);
-    }
-
-    /// When an interrupt occurs, check if any of the 4 compares have
-    /// created an event, and if so, add it to the bitmask of triggered
-    /// events that is passed to the client.
-
-    pub fn handle_interrupt(&self) {
-        self.client.map(|client| {
-            let mut val = 0;
-            // For each of 4 possible compare events, if it's happened,
-            // clear it and store its bit in val to pass in callback.
-            for i in 0..4 {
-                if self.registers.events_compare[i].is_set(Event::READY) {
-                    val |= 1 << i;
-                    self.registers.events_compare[i].write(Event::READY::CLEAR);
-                    // Disable corresponding interrupt
-                    let interrupt_bit = match i {
-                        0 => Inte::COMPARE0::SET,
-                        1 => Inte::COMPARE1::SET,
-                        2 => Inte::COMPARE2::SET,
-                        3 => Inte::COMPARE3::SET,
-                        4 => Inte::COMPARE4::SET,
-                        _ => Inte::COMPARE5::SET,
-                    };
-                    self.registers.intenclr.write(interrupt_bit);
-                }
-            }
-            client.compare(val as u8);
-        });
-    }
-}
-
-pub struct TimerAlarm<'a> {
-    registers: StaticRef<TimerRegisters>,
-    client: OptionalCell<&'a dyn hil::time::AlarmClient>,
-}
-
 // CC0 is used for capture
 // CC1 is used for compare/interrupts
 const CC_CAPTURE: usize = 0;
 const CC_COMPARE: usize = 1;
 
-impl<'a> TimerAlarm<'a> {
-    pub const fn new(instance: usize) -> TimerAlarm<'a> {
+verus! {
+pub struct TimerAlarm {
+    registers: TimerRegisters,
+}
+
+impl TimerAlarm {
+    pub const fn new(reg: TimerRegisters) -> TimerAlarm {
         TimerAlarm {
-            registers: INSTANCES[instance],
-            client: OptionalCell::empty(),
+            registers: reg,
         }
     }
 
@@ -286,11 +235,57 @@ impl<'a> TimerAlarm<'a> {
         self.disable_interrupts();
     }
 
+    fn set_alarm(&self, reference: Ticks32, dt: Ticks32) {
+        assert(false);
+        // shut off alarm (eventhough it is still counting)
+        self.disable_interrupts();
+
+        // What is the purpose of SYNC_TICS?
+        let SYNC_TICS: u32 = 2;
+        let regs = &self.registers;
+
+        let mut expire = reference.wrapping_add(dt);
+
+        let now = self.now();
+        let earliest_possible = now.wrapping_add(Ticks32::from(SYNC_TICS));
+
+        // This logic is tricky to understand. Not immediately clear why they are doing this.
+        if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
+        {
+            expire = earliest_possible;
+        }
+
+        regs.bitmode.write(Bitmode::BITMODE::Bit32);
+        regs.cc[CC_COMPARE].write(CC::CC.val(expire.into_u32()));
+        regs.tasks_start.write(Task::ENABLE::SET);
+        self.enable_interrupts();
+    }
+
+    fn get_alarm(&self) -> Ticks32 {
+        Ticks32::from(self.registers.cc[CC_COMPARE].read(CC::CC))
+    }
+
+    fn disarm(&self) -> Result<(), ErrorCode> {
+        self.disable_interrupts();
+        Ok(())
+    }
+
+    fn is_armed(&self) -> bool {
+        self.interrupts_enabled()
+    }
+
+    fn minimum_dt(&self) -> Ticks32 {
+        // TODO: not tested, arbitrary value
+        Ticks32::from(10)
+    }
+
+    fn alarm(&self) {
+        kernel::debug!("ALARM FIRED!");
+    }
+
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
-        self.client.map(|client| {
-            client.alarm();
-        });
+        self.alarm();
     }
 
     fn enable_interrupts(&self) {
@@ -311,7 +306,7 @@ impl<'a> TimerAlarm<'a> {
     }
 }
 
-impl Time for TimerAlarm<'_> {
+impl Time for TimerAlarm {
     type Frequency = hil::time::Freq16KHz;
     // Note: we always use BITMODE::32.
     type Ticks = hil::time::Ticks32;
@@ -320,92 +315,4 @@ impl Time for TimerAlarm<'_> {
         Self::Ticks::from(self.value())
     }
 }
-
-impl<'a> Alarm<'a> for TimerAlarm<'a> {
-    // OOS - out of scopezzz
-    fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
-        self.client.set(client);
-    }
-
-    // General Notes:
-    // The TRD states that ref is needed to disambiguate case of very near
-    // and very far alarm.
-    //
-    // Case that is hard to reason about (and motivates need for ref)
-    // Consider the following |--------X-O--------| where O is now
-    // and X is the tick value the arm is to fire at. For this case,
-    // We do not know if a short alarm was set for a after now or if
-    // this is an alarm very far in the future.
-    //
-    // If this is the case of the "long timer", ref + dt  will be a
-    // "large value" and subsequently the value will be within the
-    // range of [ref, ref + dt)
-    // Example of this: |-----X-O---(REF)--| where X is (ref + dt)
-    //                  |-----X-(REF)-O----| where X is (ref + dt)
-    //
-    // In the case of the "short timer", ref + dt will be a "small value"
-    // and the value will not be within this range:
-    // Example of this: |----(REF)-X-O-----| where X is (ref + dt)
-    //
-    // The question remains, could this be simplied or done in a better way?
-    // It seems this could just be checked by seeing if REF < REF + DT to
-    // determine if it is a long vs short alarm (this probably is missing
-    // some edge cases. this might be interesting once we prove the correctness
-    // of this to see if a "simpler" calculation like this is also true. if
-    // it is not, we can then perhaps say "this is an example of what seems
-    // to be a correct solution, but fails to consider x,y,z edge cases etc".
-    // if it ends up being simpler, we can show that we found this simpler
-    // way that is logically equivalent but more easily understandable. Both
-    // seem valuable).
-
-    // Preconditions:
-    // 1. Timer is running
-    // 2. Ref <= now (reference is in the past)
-    // Things to prove:
-    // 1. enable alarm
-    // 2. If no alarm => set new alarm
-    //    If alarm => cancel previous and replace with new alarm
-    // 3.
-    fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        // shut off alarm (eventhough it is still counting)
-        self.disable_interrupts();
-
-        // What is the purpose of SYNC_TICS?
-        const SYNC_TICS: u32 = 2;
-        let regs = &*self.registers;
-
-        let mut expire = reference.wrapping_add(dt);
-
-        let now = self.now();
-        let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
-
-        // This logic is tricky to understand. Not immediately clear why they are doing this.
-        if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
-        {
-            expire = earliest_possible;
-        }
-
-        regs.bitmode.write(Bitmode::BITMODE::Bit32);
-        regs.cc[CC_COMPARE].write(CC::CC.val(expire.into_u32()));
-        regs.tasks_start.write(Task::ENABLE::SET);
-        self.enable_interrupts();
-    }
-
-    fn get_alarm(&self) -> Self::Ticks {
-        Self::Ticks::from(self.registers.cc[CC_COMPARE].read(CC::CC))
-    }
-
-    fn disarm(&self) -> Result<(), ErrorCode> {
-        self.disable_interrupts();
-        Ok(())
-    }
-
-    fn is_armed(&self) -> bool {
-        self.interrupts_enabled()
-    }
-
-    fn minimum_dt(&self) -> Self::Ticks {
-        // TODO: not tested, arbitrary value
-        Self::Ticks::from(10)
-    }
 }

@@ -12,4 +12,5 @@ pub mod pinmux;
 pub mod rtc;
 pub mod temperature;
 pub mod timer;
+pub mod timer_simple;
 pub mod trng;
