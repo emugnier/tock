@@ -12,6 +12,8 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use vstd::prelude::*;
+
 const RTC1_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40011000 as *const RtcRegisters) };
 
@@ -88,6 +90,25 @@ register_bitfields![u32,
     ]
 ];
 
+verus! {
+
+// struct Nrf5xVeriRtc <'a> {
+//     trusted_rtc: Rtc<'a>,
+// }
+
+// impl<'a> Nrf5xVeriRtc<'a> {
+//     pub const fn new(rtc: Rtc<'a>) -> Self {
+//         Self {
+//             trusted_rtc: rtc,
+//         }
+//     }
+
+//     pub fn handle_interrupt(&self) {
+//         self.trusted_rtc.handle_interrupt();
+//         }
+// }
+
+#[verifier::external_body]
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
     overflow_client: OptionalCell<&'a dyn time::OverflowClient>,
@@ -96,6 +117,7 @@ pub struct Rtc<'a> {
 }
 
 impl<'a> Rtc<'a> {
+    #[verifier::external_body]
     pub const fn new() -> Self {
         Self {
             registers: RTC1_BASE,
@@ -105,6 +127,7 @@ impl<'a> Rtc<'a> {
         }
     }
 
+    #[verifier::external_body]
     pub fn handle_interrupt(&self) {
         if self.registers.events_ovrflw.is_set(Event::READY) {
             self.registers.events_ovrflw.write(Event::READY::CLEAR);
@@ -121,14 +144,18 @@ impl<'a> Rtc<'a> {
 }
 
 impl Time for Rtc<'_> {
-    type Frequency = time::Freq32KHz;
+    fn get_freq() -> u32 {
+        32768
+    }
     type Ticks = time::Ticks24;
 
+    #[verifier::external_body]
     fn now(&self) -> Self::Ticks {
         Self::Ticks::from(self.registers.counter.read(Counter::VALUE))
     }
 }
 
+#[verifier::external]
 impl<'a> time::Counter<'a> for Rtc<'a> {
     fn set_overflow_client(&self, client: &'a dyn time::OverflowClient) {
         self.overflow_client.set(client);
@@ -159,24 +186,26 @@ impl<'a> time::Counter<'a> for Rtc<'a> {
     }
 }
 
+#[verifier::external]
 impl<'a> Alarm<'a> for Rtc<'a> {
     fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
         self.alarm_client.set(client);
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        const SYNC_TICS: u32 = 2;
+        // const SYNC_TICS: u32 = 2;
         let regs = &*self.registers;
 
-        let mut expire = reference.wrapping_add(dt);
+        // let mut expire = reference.wrapping_add(dt);
 
         let now = self.now();
-        let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
+        // let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
 
-        if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
-        {
-            expire = earliest_possible;
-        }
+        // if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
+        // {
+        //     expire = earliest_possible;
+        // }
+        let expire = calculate_expire(reference, dt, now);
 
         regs.cc[0].write(Counter::VALUE.val(expire.into_u32()));
         regs.events_compare[0].write(Event::READY::CLEAR);
@@ -202,4 +231,22 @@ impl<'a> Alarm<'a> for Rtc<'a> {
         // TODO: not tested, arbitrary value
         Self::Ticks::from(10)
     }
+}
+
+fn calculate_expire(reference: time::Ticks24, dt: time::Ticks24, now: time::Ticks24) -> time::Ticks24 {
+    let SYNC_TICS: u32 = 2;
+
+    // DANGER WITH NOW!!
+
+    let mut expire = reference.wrapping_add(dt);
+
+    let earliest_possible = now.wrapping_add(time::Ticks24::from(SYNC_TICS));
+
+    if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
+    {
+        expire = earliest_possible;
+    }
+
+    expire
+}
 }

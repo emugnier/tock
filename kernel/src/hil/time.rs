@@ -19,6 +19,8 @@ use crate::ErrorCode;
 use core::cmp::Ordering;
 use core::fmt;
 
+use vstd::prelude::*;
+
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
 
@@ -148,7 +150,7 @@ pub trait Frequency {
 /// Represents a moment in time, obtained by calling `now`.
 pub trait Time {
     /// The number of ticks per second
-    type Frequency: Frequency;
+    fn get_freq() -> u32;
     /// The width of a time value
     type Ticks: Ticks;
 
@@ -196,31 +198,31 @@ pub trait ConvertTicks<T: Ticks> {
 impl<T: Time + ?Sized> ConvertTicks<<T as Time>::Ticks> for T {
     #[inline]
     fn ticks_from_seconds(&self, s: u32) -> <T as Time>::Ticks {
-        let val = <T as Time>::Frequency::frequency() as u64 * s as u64;
+        let val = <T as Time>::get_freq() as u64 * s as u64;
         <T as Time>::Ticks::from_or_max(val)
     }
     #[inline]
     fn ticks_from_ms(&self, ms: u32) -> <T as Time>::Ticks {
-        let val = <T as Time>::Frequency::frequency() as u64 * ms as u64;
+        let val = <T as Time>::get_freq() as u64 * ms as u64;
         <T as Time>::Ticks::from_or_max(val / 1_000)
     }
     #[inline]
     fn ticks_from_us(&self, us: u32) -> <T as Time>::Ticks {
-        let val = <T as Time>::Frequency::frequency() as u64 * us as u64;
+        let val = <T as Time>::get_freq() as u64 * us as u64;
         <T as Time>::Ticks::from_or_max(val / 1_000_000)
     }
 
     #[inline]
     fn ticks_to_seconds(&self, tick: <T as Time>::Ticks) -> u32 {
-        tick.saturating_scale(1, <T as Time>::Frequency::frequency())
+        tick.saturating_scale(1, <T as Time>::get_freq())
     }
     #[inline]
     fn ticks_to_ms(&self, tick: <T as Time>::Ticks) -> u32 {
-        tick.saturating_scale(1_000, <T as Time>::Frequency::frequency())
+        tick.saturating_scale(1_000, <T as Time>::get_freq())
     }
     #[inline]
     fn ticks_to_us(&self, tick: <T as Time>::Ticks) -> u32 {
-        tick.saturating_scale(1_000_000, <T as Time>::Frequency::frequency())
+        tick.saturating_scale(1_000_000, <T as Time>::get_freq())
     }
 }
 
@@ -397,67 +399,102 @@ pub trait Timer<'a>: Time {
 // they can never be constructed, it forces them to be used purely as
 // type-markers which are guaranteed to be elided at runtime.
 
-/// 100MHz `Frequency`
-#[derive(Debug)]
-pub enum Freq100MHz {}
-impl Frequency for Freq100MHz {
-    fn frequency() -> u32 {
-        100_000_000
-    }
+enum FrequencyVal {
+    /// 48MHz `Frequency`
+    Freq48MHz,
+    /// 32MHz `Frequency`
+    Freq32MHz,
+    /// 16MHz `Frequency`
+    Freq16MHz,
+    /// 10MHz `Frequency`
+    Freq10MHz,
+    /// 8MHz `Frequency`
+    Freq8MHz,
+    /// 4MHz `Frequency`
+    Freq4MHz,
+    /// 1MHz `Frequency`
+    Freq1MHz,
+    /// 500KHz `Frequency`
+    Freq500KHz,
+    /// 250KHz `Frequency`
+    Freq250KHz,
+    /// 125KHz `Frequency`
+    Freq125KHz,
+    /// 100KHz `Frequency`
+    Freq100KHz,
+    /// 50KHz `Frequency`
+    Freq50KHz,
+    /// 32KHz `Frequency`
+    Freq32KHz,
+    /// 16KHz `Frequency`
+    Freq16KHz,
+    /// 1KHz `Frequency`
+    Freq1KHz,
 }
 
-/// 16MHz `Frequency`
-#[derive(Debug)]
-pub enum Freq16MHz {}
-impl Frequency for Freq16MHz {
-    fn frequency() -> u32 {
-        16_000_000
-    }
-}
+// /// 100MHz `Frequency`
+// #[derive(Debug)]
+// pub enum Freq100MHz {}
+// impl Frequency for Freq100MHz {
+//     fn frequency() -> u32 {
+//         100_000_000
+//     }
+// }
 
-/// 10MHz `Frequency`
-pub enum Freq10MHz {}
-impl Frequency for Freq10MHz {
-    fn frequency() -> u32 {
-        10_000_000
-    }
-}
+// /// 16MHz `Frequency`
+// #[derive(Debug)]
+// pub enum Freq16MHz {}
+// impl Frequency for Freq16MHz {
+//     fn frequency() -> u32 {
+//         16_000_000
+//     }
+// }
 
-/// 1MHz `Frequency`
-#[derive(Debug)]
-pub enum Freq1MHz {}
-impl Frequency for Freq1MHz {
-    fn frequency() -> u32 {
-        1_000_000
-    }
-}
+// /// 10MHz `Frequency`
+// pub enum Freq10MHz {}
+// impl Frequency for Freq10MHz {
+//     fn frequency() -> u32 {
+//         10_000_000
+//     }
+// }
 
-/// 32.768KHz `Frequency`
-#[derive(Debug)]
-pub enum Freq32KHz {}
-impl Frequency for Freq32KHz {
-    fn frequency() -> u32 {
-        32_768
-    }
-}
+// /// 1MHz `Frequency`
+// #[derive(Debug)]
+// pub enum Freq1MHz {}
+// impl Frequency for Freq1MHz {
+//     fn frequency() -> u32 {
+//         1_000_000
+//     }
+// }
+// verus! {
+// /// 32.768KHz `Frequency`
+// #[verifier::external]
+// #[derive(Debug)]
+// pub enum Freq32KHz {}
+// impl Frequency for Freq32KHz {
+//     fn frequency() -> u32 {
+//         32_768
+//     }
+// }
+// }
 
-/// 16KHz `Frequency`
-#[derive(Debug)]
-pub enum Freq16KHz {}
-impl Frequency for Freq16KHz {
-    fn frequency() -> u32 {
-        16_000
-    }
-}
+// /// 16KHz `Frequency`
+// #[derive(Debug)]
+// pub enum Freq16KHz {}
+// impl Frequency for Freq16KHz {
+//     fn frequency() -> u32 {
+//         16_000
+//     }
+// }
 
-/// 1KHz `Frequency`
-#[derive(Debug)]
-pub enum Freq1KHz {}
-impl Frequency for Freq1KHz {
-    fn frequency() -> u32 {
-        1_000
-    }
-}
+// /// 1KHz `Frequency`
+// #[derive(Debug)]
+// pub enum Freq1KHz {}
+// impl Frequency for Freq1KHz {
+//     fn frequency() -> u32 {
+//         1_000
+//     }
+// }
 
 /// u32 `Ticks`
 #[derive(Clone, Copy, Debug)]
@@ -544,17 +581,20 @@ impl PartialEq for Ticks32 {
 
 impl Eq for Ticks32 {}
 
+verus! {
 /// 24-bit `Ticks`
 #[derive(Clone, Copy, Debug)]
 pub struct Ticks24(u32);
 
 impl Ticks24 {
-    pub const MASK: u32 = 0x00FFFFFF;
+    pub fn get_mask() -> u32 {
+        0x00FFFFFF
+    }
 }
 
 impl From<u32> for Ticks24 {
     fn from(val: u32) -> Self {
-        Ticks24(val & Self::MASK)
+        Ticks24(val & Self::get_mask())
     }
 }
 
@@ -572,11 +612,11 @@ impl Ticks for Ticks24 {
     }
 
     fn wrapping_add(self, other: Self) -> Self {
-        Ticks24(self.0.wrapping_add(other.0) & Self::MASK)
+        Ticks24(self.0.wrapping_add(other.0) & Self::get_mask())
     }
 
     fn wrapping_sub(self, other: Self) -> Self {
-        Ticks24(self.0.wrapping_sub(other.0) & Self::MASK)
+        Ticks24(self.0.wrapping_sub(other.0) & Self::get_mask())
     }
 
     fn within_range(self, start: Self, end: Self) -> bool {
@@ -585,7 +625,7 @@ impl Ticks for Ticks24 {
 
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
-        Ticks24(Self::MASK)
+        Ticks24(Self::get_mask())
     }
 
     /// Returns the half the maximum value of this type, which should be (2^width-1).
@@ -603,6 +643,7 @@ impl Ticks for Ticks24 {
     }
 
     #[inline]
+    #[verifier(external_body)]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
@@ -613,6 +654,9 @@ impl Ticks for Ticks24 {
     }
 }
 
+#[verifier(external_type_specification)]
+pub struct ExOrdering(core::cmp::Ordering);
+
 impl PartialOrd for Ticks24 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -620,6 +664,7 @@ impl PartialOrd for Ticks24 {
 }
 
 impl Ord for Ticks24 {
+    #[verifier(external_body)]
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
@@ -632,6 +677,7 @@ impl PartialEq for Ticks24 {
 }
 
 impl Eq for Ticks24 {}
+}
 
 /// 16-bit `Ticks`
 #[derive(Clone, Copy, Debug)]
@@ -829,7 +875,12 @@ mod tests {
 
     struct Test1MHz64();
     impl Time for Test1MHz64 {
-        type Frequency = Freq1MHz;
+        fn get_freq(freq_val: FrequencyVal) -> u32 {
+            match freq_val {
+                FrequencyVal::Freq1MHz => 1_000_000,
+                _ => 0,
+            }
+        }
         type Ticks = Ticks64;
 
         fn now(&self) -> Self::Ticks {
@@ -875,7 +926,12 @@ mod tests {
 
     struct Test1KHz16();
     impl Time for Test1KHz16 {
-        type Frequency = Freq1KHz;
+        fn get_freq(freq_val: FrequencyVal) -> u32 {
+            match freq_val {
+                FrequencyVal::Freq1KHz => 1_000,
+                _ => 0,
+            }
+        }
         type Ticks = Ticks16;
 
         fn now(&self) -> Self::Ticks {
@@ -918,7 +974,12 @@ mod tests {
 
     struct Test1KHz24();
     impl Time for Test1KHz24 {
-        type Frequency = Freq1KHz;
+        fn get_freq(freq_val: FrequencyVal) -> u32 {
+            match freq_val {
+                FrequencyVal::Freq1KHz => 1_000,
+                _ => 0,
+            }
+        }
         type Ticks = Ticks24;
 
         fn now(&self) -> Self::Ticks {

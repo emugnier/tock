@@ -176,7 +176,7 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
             // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
             // instead.
             let us = us as u64;
-            let hertz = A::Frequency::frequency() as u64;
+            let hertz = 10 as u64;
 
             (hertz * us / 1_000_000) as u32
         };
@@ -211,10 +211,10 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         // However, if the alarm frequency is slow enough relative to the cpu frequency, it is
         // possible this will be evaluated while now() == get_alarm(), so we special case that
         // result where the alarm has fired but the subtraction has not overflowed
-        if diff >= A::Frequency::frequency() as u64 || diff == 0 {
+        if diff >= 10 as u64 || diff == 0 {
             None
         } else {
-            let hertz = A::Frequency::frequency() as u64;
+            let hertz = 10 as u64;
             Some(((diff * 1_000_000) / hertz) as u32)
         }
     }

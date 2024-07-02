@@ -12,6 +12,9 @@ edition.workspace = true
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
+builtin = { path = "../../verus/source/builtin" }
+builtin_macros = { path = "../../verus/source/builtin_macros" }
+vstd = { path = "../../verus/source/vstd" }
 
 # In general, Tock discourages the use of cargo features. However for certain
 # kernel crate configuration, we have not found reasonable alternatives to
