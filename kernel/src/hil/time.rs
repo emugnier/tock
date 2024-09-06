@@ -496,6 +496,7 @@ enum FrequencyVal {
 //     }
 // }
 
+verus! {
 /// u32 `Ticks`
 #[derive(Clone, Copy, Debug)]
 pub struct Ticks32(u32);
@@ -551,6 +552,7 @@ impl Ticks for Ticks32 {
     }
 
     #[inline]
+    #[verifier(external_body)]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
@@ -568,6 +570,7 @@ impl PartialOrd for Ticks32 {
 }
 
 impl Ord for Ticks32 {
+    #[verifier(external_body)]
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
@@ -581,7 +584,6 @@ impl PartialEq for Ticks32 {
 
 impl Eq for Ticks32 {}
 
-verus! {
 /// 24-bit `Ticks`
 #[derive(Clone, Copy, Debug)]
 pub struct Ticks24(u32);

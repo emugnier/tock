@@ -222,6 +222,7 @@ pub struct TimerAlarm {
 }
 
 impl TimerAlarm {
+    #[verifier(external_body)]
     pub const fn new(reg: TimerRegisters) -> TimerAlarm {
         TimerAlarm {
             registers: reg,
@@ -307,9 +308,11 @@ impl TimerAlarm {
 }
 
 impl Time for TimerAlarm {
-    type Frequency = hil::time::Freq16KHz;
+    // type Frequency = hil::time::FrequencyVal::Freq16KHz;
     // Note: we always use BITMODE::32.
     type Ticks = hil::time::Ticks32;
+
+    fn get_freq() -> u32 { 0 }
 
     fn now(&self) -> Self::Ticks {
         Self::Ticks::from(self.value())

@@ -218,7 +218,7 @@ pub trait CompareClient {
     fn compare(&self, bitmask: u8);
 }
 
-#[verifier::external]
+#[verifier::external_body]
 pub struct Timer {
     registers: StaticRef<TimerRegisters>,
     client: OptionalCell<&'static dyn CompareClient>,
@@ -238,36 +238,57 @@ impl Timer {
         self.client.set(client);
     }
 
+    // VERUS-TODO: might have to create a type for these registers
+    // and model them
+    #[verifier::external_body]
+    pub fn is_set_events_compare(&self, i: usize) -> bool{
+        self.registers.events_compare[i].is_set(Event::READY)
+    }
+
+    #[verifier::external_body]
+    pub fn write_events_compare(&self, i: usize) {
+        self.registers.events_compare[i].write(Event::READY::SET);
+    }
+
+    #[verifier::external_body]
+    pub fn write_intenclr(&self, i: usize) {
+        let interrupt_bit = match i {
+            0 => Inte::COMPARE0::SET,
+            1 => Inte::COMPARE1::SET,
+            2 => Inte::COMPARE2::SET,
+            3 => Inte::COMPARE3::SET,
+            4 => Inte::COMPARE4::SET,
+            _ => Inte::COMPARE5::SET,
+        };
+        self.registers.intenclr.write(interrupt_bit);
+    }
+
     /// When an interrupt occurs, check if any of the 4 compares have
     /// created an event, and if so, add it to the bitmask of triggered
     /// events that is passed to the client.
 
     pub fn handle_interrupt(&self) {
-        self.client.map(|client| {
+        // self.client.map(|client| {
             let mut val = 0;
             // For each of 4 possible compare events, if it's happened,
             // clear it and store its bit in val to pass in callback.
             for i in 0..4 {
-                if self.registers.events_compare[i].is_set(Event::READY) {
+                // if self.registers.events_compare[i].is_set(Event::READY) {
+                if self.is_set_events_compare(i) {
                     val |= 1 << i;
-                    self.registers.events_compare[i].write(Event::READY::CLEAR);
+                    // self.registers.events_compare[i].write(Event::READY::CLEAR);
+                    self.write_events_compare(i);
                     // Disable corresponding interrupt
-                    let interrupt_bit = match i {
-                        0 => Inte::COMPARE0::SET,
-                        1 => Inte::COMPARE1::SET,
-                        2 => Inte::COMPARE2::SET,
-                        3 => Inte::COMPARE3::SET,
-                        4 => Inte::COMPARE4::SET,
-                        _ => Inte::COMPARE5::SET,
-                    };
-                    self.registers.intenclr.write(interrupt_bit);
+                    self.write_intenclr(i);
                 }
             }
-            client.compare(val as u8);
-        });
+            // client.compare(val as u8);
+        // });
     }
 }
 
+// VERUS-TODO: what does it mean to make a struct external_body
+#[verifier::external_body]
 pub struct TimerAlarm<'a> {
     registers: StaticRef<TimerRegisters>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
@@ -279,6 +300,7 @@ const CC_CAPTURE: usize = 0;
 const CC_COMPARE: usize = 1;
 
 impl<'a> TimerAlarm<'a> {
+    #[verifier::external_body]
     pub const fn new(instance: usize) -> TimerAlarm<'a> {
         TimerAlarm {
             registers: INSTANCES[instance],
@@ -286,6 +308,7 @@ impl<'a> TimerAlarm<'a> {
         }
     }
 
+    #[verifier::external_body]
     fn clear_alarm(&self) {
         self.registers.events_compare[CC_COMPARE].write(Event::READY::CLEAR);
         self.registers.tasks_stop.write(Task::ENABLE::SET);
@@ -293,6 +316,7 @@ impl<'a> TimerAlarm<'a> {
         self.disable_interrupts();
     }
 
+    #[verifier::external_body]
     pub fn handle_interrupt(&self) {
         self.clear_alarm();
         self.client.map(|client| {
@@ -300,26 +324,32 @@ impl<'a> TimerAlarm<'a> {
         });
     }
 
+    #[verifier::external_body]
     fn enable_interrupts(&self) {
         self.registers.intenset.write(Inte::COMPARE1::SET);
     }
 
+    #[verifier::external_body]
     fn disable_interrupts(&self) {
         self.registers.intenclr.write(Inte::COMPARE1::SET);
     }
 
+    #[verifier::external_body]
     fn interrupts_enabled(&self) -> bool {
         self.registers.intenset.is_set(Inte::COMPARE1)
     }
 
+    #[verifier::external_body]
     fn value(&self) -> u32 {
         self.registers.tasks_capture[CC_CAPTURE].write(Task::ENABLE::SET);
         self.registers.cc[CC_CAPTURE].get()
     }
 }
 
+
 impl Time for TimerAlarm<'_> {
-    type Frequency = hil::time::Freq16KHz;
+    // type Frequency = hil::time::Freq16KHz;
+    fn get_freq() -> u32 { 0 }
     // Note: we always use BITMODE::32.
     type Ticks = hil::time::Ticks32;
 
@@ -328,6 +358,7 @@ impl Time for TimerAlarm<'_> {
     }
 }
 
+#[verifier::external]
 impl<'a> Alarm<'a> for TimerAlarm<'a> {
     fn set_alarm_client(&self, client: &'a dyn hil::time::AlarmClient) {
         self.client.set(client);
