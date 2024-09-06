@@ -1,5 +1,30 @@
 # ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo")
 
+## Verus Tock
+
+Needs to use Rust stable and potentially a specific version that works with Verus.
+Compile all the modules needed first:
+
+- tock-registers
+- tock-cells
+- tock-tbf
+- tock-kernel
+- enum-primitive
+
+Verify the kernel:
+
+```bash
+verus kernel/src/lib.rs -L dependency=target/debug/deps --extern=tock_registers=target/debug/libtock_registers.rlib --crate-type=lib --extern=tock_cells=target/debug/libtock_cells.rlib --extern=tock_tbf=target/debug/libtock_tbf.rlib --export kernel.vir
+```
+
+Verify the rtc of nrf5x:
+
+```bash
+ verus chips/nrf5x/src/rtc.rs -L dependency=target/debug/deps --extern=kernel=target/debug/libkernel.rlib --extern=enum_primitive=target/debug/libenum_primitive.rlib --crate-type=lib --import kernel=kernel.vir
+```
+
+```
+
 [![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 [![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
@@ -110,60 +135,60 @@ Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prab
   <h4><a href="http://doi.acm.org/10.1145/3124680.3124717">APSys: The Case for Writing a Kernel in Rust</a></h4>
 <pre>
 @inproceedings{levy17rustkernel,
-	title = {The Case for Writing a Kernel in Rust},
-	booktitle = {Proceedings of the 8th Asia-Pacific Workshop on Systems},
-	series = {APSys '17},
-	year = {2017},
-	month = {9},
-	isbn = {978-1-4503-5197-3},
-	location = {Mumbai, India},
-	pages = {1:1--1:7},
-	articleno = {1},
-	numpages = {7},
-	url = {http://doi.acm.org/10.1145/3124680.3124717},
-	doi = {10.1145/3124680.3124717},
-	acmid = {3124717},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	conference-url = {https://www.cse.iitb.ac.in/~apsys2017/},
-	author = {Levy, Amit and Campbell, Bradford and Ghena, Branden and Pannuto, Pat and Dutta, Prabal and Levis, Philip},
+ title = {The Case for Writing a Kernel in Rust},
+ booktitle = {Proceedings of the 8th Asia-Pacific Workshop on Systems},
+ series = {APSys '17},
+ year = {2017},
+ month = {9},
+ isbn = {978-1-4503-5197-3},
+ location = {Mumbai, India},
+ pages = {1:1--1:7},
+ articleno = {1},
+ numpages = {7},
+ url = {http://doi.acm.org/10.1145/3124680.3124717},
+ doi = {10.1145/3124680.3124717},
+ acmid = {3124717},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ conference-url = {https://www.cse.iitb.ac.in/~apsys2017/},
+ author = {Levy, Amit and Campbell, Bradford and Ghena, Branden and Pannuto, Pat and Dutta, Prabal and Levis, Philip},
 }</pre>
 
   <h4><a href="http://dx.doi.org/10.1145/2818302.2818306">PLOS: Ownership is Theft: Experiences Building an Embedded OS in Rust</a></h4>
 <pre>
 @inproceedings{levy15ownership,
-	title = {Ownership is Theft: Experiences Building an Embedded {OS} in {R}ust},
-	booktitle = {Proceedings of the 8th Workshop on Programming Languages and Operating Systems},
-	series = {PLOS 2015},
-	year = {2015},
-	month = {10},
-	isbn = {978-1-4503-3942-1},
-	doi = {10.1145/2818302.2818306},
-	url = {http://dx.doi.org/10.1145/2818302.2818306},
-	location = {Monterey, CA},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	conference-url = {http://plosworkshop.org/2015/},
-	author = {Levy, Amit and Andersen, Michael P and Campbell, Bradford and Culler, David and Dutta, Prabal and Ghena, Branden and Levis, Philip and Pannuto, Pat},
+ title = {Ownership is Theft: Experiences Building an Embedded {OS} in {R}ust},
+ booktitle = {Proceedings of the 8th Workshop on Programming Languages and Operating Systems},
+ series = {PLOS 2015},
+ year = {2015},
+ month = {10},
+ isbn = {978-1-4503-3942-1},
+ doi = {10.1145/2818302.2818306},
+ url = {http://dx.doi.org/10.1145/2818302.2818306},
+ location = {Monterey, CA},
+ publisher = {ACM},
+ address = {New York, NY, USA},
+ conference-url = {http://plosworkshop.org/2015/},
+ author = {Levy, Amit and Andersen, Michael P and Campbell, Bradford and Culler, David and Dutta, Prabal and Ghena, Branden and Levis, Philip and Pannuto, Pat},
 }</pre>
   <p>There is also a paper on the Tock security model. The threat model documentation in the docs/ folder is the source of truth for the current Tock threat model, but this paper represents a snapshot of the reasoning behind the Tock threat model and details how it compares to those in similar embedded OSes.</p>
   <h4><a href="https://dx.doi.org/10.1145/3517208.3523752">EuroSec: Tiered Trust for useful embedded systems security</a></h4>
 <pre>
 @inproceedings{10.1145/3517208.3523752,
-	author = {Ayers, Hudson and Dutta, Prabal and Levis, Philip and Levy, Amit and Pannuto, Pat and Van Why, Johnathan and Watson, Jean-Luc},
-	title = {Tiered Trust for Useful Embedded Systems Security},
-	year = {2022},
-	isbn = {9781450392556},
-	publisher = {Association for Computing Machinery},
-	address = {New York, NY, USA},
-	url = {https://doi.org/10.1145/3517208.3523752},
-	doi = {10.1145/3517208.3523752},
-	booktitle = {Proceedings of the 15th European Workshop on Systems Security},
-	pages = {15–21},
-	numpages = {7},
-	keywords = {security, embedded systems, operating systems, IoT},
-	location = {Rennes, France},
-	series = {EuroSec '22}
+ author = {Ayers, Hudson and Dutta, Prabal and Levis, Philip and Levy, Amit and Pannuto, Pat and Van Why, Johnathan and Watson, Jean-Luc},
+ title = {Tiered Trust for Useful Embedded Systems Security},
+ year = {2022},
+ isbn = {9781450392556},
+ publisher = {Association for Computing Machinery},
+ address = {New York, NY, USA},
+ url = {https://doi.org/10.1145/3517208.3523752},
+ doi = {10.1145/3517208.3523752},
+ booktitle = {Proceedings of the 15th European Workshop on Systems Security},
+ pages = {15–21},
+ numpages = {7},
+ keywords = {security, embedded systems, operating systems, IoT},
+ location = {Rennes, France},
+ series = {EuroSec '22}
 }</pre>
 </details>
 
