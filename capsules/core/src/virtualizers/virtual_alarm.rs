@@ -4,13 +4,16 @@
 
 //! Virtualize the Alarm interface to enable multiple users of an underlying
 //! alarm hardware peripheral.
-
 use core::cell::Cell;
+use vstd::prelude::*;
 
-use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::hil::time::{self, Alarm, Ticks, Time};
+use kernel::collections::list::{List, ListIterator, ListLink, ListNode};
+use kernel::hil::time::{self, Alarm, FrequencyVal, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
+
+use crate::alarm::AlarmDriver;
+verus! {
 
 #[derive(Copy, Clone)]
 struct TickDtReference<T: Ticks> {
@@ -45,8 +48,20 @@ pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     /// Next alarm in the list.
     next: ListLink<'a, VirtualMuxAlarm<'a, A>>,
     /// Alarm client for this node in the list.
-    client: OptionalCell<&'a dyn time::AlarmClient>,
+    client: OptionalCell<&'a AlarmDriver<'a, A>>,
 }
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(T)]
+// VERUS-TODO: Verify the ListLink type
+pub struct ExListIterator<'a, T: 'a + ?Sized +ListNode<'a, T>>(ListIterator<'a, T>);
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(T)]
+// VERUS-TODO: Verify the ListLink type
+pub struct ExLinkList<'a, T: 'a + ?Sized>(ListLink<'a, T>);
 
 impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
     fn next(&self) -> &'a ListLink<VirtualMuxAlarm<'a, A>> {
@@ -54,10 +69,145 @@ impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<
     }
 }
 
+#[verifier::external_fn_specification]
+pub const fn ExListLinkempty<'a, T: ?Sized>() -> ListLink<'a, T> {
+    ListLink::empty()
+}
+
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(T)]
+pub struct ExList<'a, T: 'a + ?Sized + ListNode<'a, T>> (kernel::collections::list::List<'a, T>);
+
+#[verifier::external_fn_specification]
+pub const fn ExListNew<'a, T: ?Sized + ListNode<'a, T>>() -> List<'a, T> {
+    List::new()
+}
+
+#[verifier::external_fn_specification]
+pub fn ExListpushhead<'a, T: ?Sized + ListNode<'a, T>>(list: &List<'a, T>, node: &'a T) {
+    list.push_head(node)
+}
+
+#[verifier::external_fn_specification]
+pub fn ExListhead<'a, T: ?Sized + ListNode<'a, T>>(list: &List<'a, T>) -> Option<&'a T> {
+    list.head()
+}
+
+// #[verifier::external_fn_specification]
+// pub fn ExListIterator<'a, T: ?Sized + ListNode<'a, T>>(list: &List<'a, T>) -> kernel::collections::list::ListIterator<'a,T> {
+//     list.iter()
+// }
+
+// pub fn iter(&self) -> ListIterator<'a, T> {
+//     ListIterator {
+//         cur: self.head.0.get(),
+//     }
+// }
+
+
+
+
+//     fn from(value: T) -> Self;
+// #[verifier::external_fn_specification]
+// fn from_requires_ensures(value: u32) -> Ticks
+//     {
+//         Ticks(value)
+//     }
+// #[verifier ::external_fn_specification]
+// fn from_requires_ensures(value: u32) -> Ticks
+// {
+//     time::Ticks32::from(value)
+// }
+
+// #[verifier::external_trait_specification]
+// pub trait ExFrom<T>: Sized{
+//     type ExternalTraitSpecificationFor: core::convert::From<T>;
+//     // fn from(value: T) -> core::convert::From<T>::from;
+// }
+
+// #[verifier::external_fn_specification]
+// pub fn ex_from_ticks(val: u32) -> (ticks: Ticks)
+// {
+//     Ticks::from(val)
+// }
+
+// #[verifier::external_fn_specification]
+// pub fn ex_from_impl<A: Ticks>(value: u32) -> (r: time::Ticks32)
+// {
+//     Ticks32::from(value)
+// }
+// #[verifier::external_fn_specification]
+// pub fn from_requires_ensures<T>(a: T) -> T
+// {
+//     core::convert::From::from(a)
+// }
+
+// impl ExFrom<u32> for time::Ticks24 {
+//     type ExternalTraitSpecificationFor = Self;
+
+//     #[verifier::external_fn_specification]
+//     fn from(value: u32) -> Self {
+//         time::Ticks24(value)
+//     }
+// }
+
+// impl From<u32> for Ticks32 {
+//     fn from(val: u32) -> Self {
+//         Ticks32(val)
+//     }
+// }
+
+
+// VERUS-TODO: Cell can probably be changed by the Verified PCell from vstd
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(T)]
+pub struct ExCell<T: ?Sized>(core::cell::Cell<T>);
+
+#[verifier::external_fn_specification]
+pub const fn Exnew<T>(value: T) -> Cell<T>
+{
+    Cell::new(value)
+}
+
+#[verifier::external_fn_specification]
+pub fn Exget<T: Copy>(cell: &Cell<T>) -> T
+{
+    cell.get()
+}
+
+#[verifier::external_fn_specification]
+pub fn Exset<T>(cell: &Cell<T>, val: T)
+{
+    cell.set(val)
+}
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+ #[verifier::reject_recursive_types(T)]
+// VERUS-TODO: Verify the OptionnalCell type
+pub struct ExOptionalCell<T>(OptionalCell<T>);
+
+#[verifier::external_fn_specification]
+pub const fn ExOptionalCellempty<T>() -> OptionalCell<T>
+{
+    OptionalCell::empty()
+}
+
+#[verifier::external_fn_specification]
+pub fn ExOptionalCellMap<T: Copy, F, R>(optcell: &OptionalCell<T>, closure: F) -> Option<R> where
+        F: FnOnce(T) -> R
+{
+    optcell.map(closure)
+}
+
 impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     /// After calling new, always call setup()
     pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> VirtualMuxAlarm<'a, A> {
-        let zero = A::Ticks::from(0);
+        // let zero = A::Ticks::from(0);
+        let zero = A::Ticks::from_or_max(0);
         VirtualMuxAlarm {
             mux: mux_alarm,
             dt_reference: Cell::new(TickDtReference {
@@ -71,6 +221,12 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
         }
     }
 
+    // VERUS-TODO: Check if this one should be marked at external
+    #[verifier::external]
+    fn set_alarm_client(&self, client: &'a AlarmDriver<'a, A>) {
+        self.client.set(client);
+    }
+
     /// Call this method immediately after new() to link this to the mux, otherwise alarms won't
     /// fire
     pub fn setup(&'a self) {
@@ -79,7 +235,12 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
-    type Frequency = A::Frequency;
+    // type Frequency = A::Frequency;
+
+    fn get_freq() -> u32 {
+        1000
+    }
+
     type Ticks = A::Ticks;
 
     fn now(&self) -> Self::Ticks {
@@ -88,9 +249,6 @@ impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
-    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
-        self.client.set(client);
-    }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
         if !self.armed.get() {
@@ -121,19 +279,21 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // up the alarm into two internal alarms. This ensures that our internal comparisons of
         // now outside of range [ref, ref + dt) will trigger correctly even with latency in the
         // system
-        let dt_reference = if dt > half_max.wrapping_add(self.minimum_dt()) {
-            TickDtReference {
-                reference,
-                dt: dt.wrapping_sub(half_max),
-                extended: true,
-            }
-        } else {
-            TickDtReference {
+        // let dt_reference = if dt > half_max.wrapping_add(self.minimum_dt()) {
+        //     TickDtReference {
+        //         reference,
+        //         dt: dt.wrapping_sub(half_max),
+        //         extended: true,
+        //     }
+        // } else {
+        // VERUS-TODO: Go back to the previous implementation
+        // Reason, arithmetic operations are not supported on the Ticks type
+        let dt_reference = TickDtReference {
                 reference,
                 dt,
                 extended: false,
-            }
-        };
+            };
+        // };
         self.dt_reference.set(dt_reference);
         // Ensure local variable has correct value when used below
         let dt = dt_reference.dt;
@@ -165,12 +325,23 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
             let now = self.mux.alarm.now();
             let expiration = reference.wrapping_add(dt);
             if !cur_alarm.within_range(reference, expiration) {
+                // VERUS-TODO: Check if it is equivalent to the previous impl
                 let next = self.mux.next_tick_vals.get();
-                if next.map_or(true, |(next_reference, next_dt)| {
-                    now.within_range(next_reference, next_reference.wrapping_add(next_dt))
-                }) {
+                if let Some((next_reference, next_dt)) = next {
+                    if now.within_range(next_reference, next_reference.wrapping_add(next_dt)) {
+                        self.mux.set_alarm(reference, dt);
+                    }
+                } else {
                     self.mux.set_alarm(reference, dt);
                 }
+                // if next.map(|next| {
+                //     let (next_reference, next_dt) = next;
+                //     now.within_range(next_reference, next_reference.wrapping_add(next_dt))
+                // })
+                // .unwrap_or(true)
+                // {
+                //     self.mux.set_alarm(reference, dt);
+                // }
             } else {
                 // current alarm will fire earlier, keep it
             }
@@ -182,7 +353,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         let extension = if dt_reference.extended {
             Self::Ticks::half_max_value()
         } else {
-            Self::Ticks::from(0)
+            Self::Ticks::from_or_max(0)
         };
         dt_reference.reference_plus_dt().wrapping_add(extension)
     }
@@ -193,8 +364,15 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
+
+    // VERUS-TODO: Verify the AlarmDriver so that we don't have to trust this
+    #[verifier::external_body]
     fn alarm(&self) {
         self.client.map(|client| client.alarm());
+        // if  self.client.is_some() {
+        //     let client = self.client.get().map(|client| client.alarm());
+            // client.alarm();
+        // }
     }
 }
 
@@ -241,34 +419,35 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         // Check whether to fire each alarm. At this level, alarms are one-shot,
         // so a repeating client will set it again in the alarm() callback.
         self.firing.set(true);
-        self.virtual_alarms
-            .iter()
-            .filter(|cur| {
+        let mut iterator = ListIterator {
+            cur: self.virtual_alarms.head(),
+        };
+        // for cur in self.virtual_alarms.iter() {
+        // while let Some(cur) = current {
+        loop {
+            match iterator.next() {
+                Some(cur) => {
                 let dt_ref = cur.dt_reference.get();
-                // It is very important to get the current now time as the reference could have been
-                // set from now in the previous for_each iteration. We rely on the reference always
-                // being in the past when compared to now.
                 let now = self.alarm.now();
-                cur.armed.get() && !now.within_range(dt_ref.reference, dt_ref.reference_plus_dt())
-            })
-            .for_each(|cur| {
-                let dt_ref = cur.dt_reference.get();
-                if dt_ref.extended {
-                    // The first part of the extended alarm just fired, leave alarm armed with
-                    // remaining time.
-                    cur.dt_reference.set(TickDtReference {
-                        reference: dt_ref.reference_plus_dt(),
-                        dt: A::Ticks::half_max_value(),
-                        extended: false,
-                    });
-                } else {
-                    // Alarm fully expired, disarm and fire callback
-                    cur.armed.set(false);
-                    self.enabled.set(self.enabled.get() - 1);
-                    //debug!("  Virtualizer: {:?} outside {:?}-{:?}, fire!", now, cur.reference.get(), cur.reference.get().wrapping_add(cur.dt.get()));
-                    cur.alarm();
+                if cur.armed.get() && !now.within_range(dt_ref.reference, dt_ref.reference_plus_dt()) {
+                    if dt_ref.extended {
+                        cur.dt_reference.set(TickDtReference {
+                            reference: dt_ref.reference_plus_dt(),
+                            dt: A::Ticks::half_max_value(),
+                            extended: false,
+                        });
+                    } else {
+                        cur.armed.set(false);
+                        self.enabled.set(self.enabled.get() - 1);
+                        cur.alarm();
+                    }
                 }
-            });
+            }
+                None => break,
+            }
+            // let mut current = self.virtual_alarms.head();
+
+        }
         self.firing.set(false);
         // Find the soonest alarm client (if any) and set the "next" underlying
         // alarm based on it.  This needs to happen after firing all expired
@@ -581,4 +760,5 @@ mod tests {
         alarm.run_for_ticks(Ticks32::from(750));
         assert_eq!(client.count(), v_alarms.len());
     }
+}
 }
