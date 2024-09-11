@@ -188,9 +188,9 @@ impl<'a> time::Counter<'a> for Rtc<'a> {
 
 #[verifier::external]
 impl<'a> Alarm<'a> for Rtc<'a> {
-    fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
-        self.alarm_client.set(client);
-    }
+    // fn set_alarm_client(&self, client: &'a dyn time::AlarmClient) {
+    //     self.alarm_client.set(client);
+    // }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         // const SYNC_TICS: u32 = 2;

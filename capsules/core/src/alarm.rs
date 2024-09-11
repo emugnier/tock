@@ -423,8 +423,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                         // accurately determine the duration of a single tick.
                         //
                         // Don't re-arm the timer:
-                        let scaled_freq =
-                            <A::Ticks>::u32_left_justified_scale_freq::<A::Frequency>();
+                        let scaled_freq = <A::Ticks>::u32_left_justified_scale_freq();
                         (CommandReturn::success_u32(scaled_freq), false)
                     }
                     2 => {

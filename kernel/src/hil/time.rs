@@ -21,9 +21,15 @@ use core::fmt;
 
 use vstd::prelude::*;
 
+verus! {
+
+#[verifier(external_fn_specification)]
+pub fn ex_saturatingsub(a: u32, b: u32) -> u32 {
+    a.saturating_sub(b)
+}
+
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
-
 pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Width of the actual underlying timer in bits.
     ///
@@ -46,6 +52,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// usize::BITS) - 1` bits. For timers with a `width` larger than
     /// usize, this value will be `0` (i.e., they can simply be
     /// truncated to usize::BITS bits).
+    // VERUS-TODO: need to model saturating_sub
     fn usize_padding() -> u32 {
         usize::BITS.saturating_sub(Self::width())
     }
@@ -66,8 +73,8 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Convert the generic [`Frequency`] argument into a frequency
     /// (Hertz) describing a left-justified ticks value as returned by
     /// [`Ticks::into_usize_left_justified`].
-    fn usize_left_justified_scale_freq<F: Frequency>() -> u32 {
-        F::frequency() << Self::usize_padding()
+    fn usize_left_justified_scale_freq() -> u32 {
+        10 << Self::usize_padding()
     }
 
     /// Converts the type into a `u32`, stripping the higher bits
@@ -86,6 +93,8 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// The return value is a `u32`, in accordance with the bit widths
     /// specified using the BITS associated const on Rust integer
     /// types.
+    // VERUS-TODO: need to model saturating_sub
+    // #[verifier(external_body)]
     fn u32_padding() -> u32 {
         u32::BITS.saturating_sub(Self::width())
     }
@@ -106,8 +115,9 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Convert the generic [`Frequency`] argument into a frequency
     /// (Hertz) describing a left-justified ticks value as returned by
     /// [`Ticks::into_u32_left_justified`].
-    fn u32_left_justified_scale_freq<F: Frequency>() -> u32 {
-        F::frequency() << Self::u32_padding()
+    fn u32_left_justified_scale_freq() -> u32 {
+        // VERUS-TODO need to make this frequency thing cleaner
+        10 << Self::u32_padding()
     }
 
     /// Add two values, wrapping around on overflow using standard
@@ -236,7 +246,12 @@ pub trait OverflowClient {
     fn overflow(&self);
 }
 
+// VERUS-TODO: need to model this or add this to verus
+#[verifier::external_type_specification]
+pub struct ExErrorCode(ErrorCode);
+
 /// Represents a free-running hardware counter that can be started and stopped.
+#[verifier(external)]
 pub trait Counter<'a>: Time {
     /// Specify the callback for when the counter overflows its maximum
     /// value (defined by `Ticks`). If there was a previously registered
@@ -295,7 +310,7 @@ pub trait Alarm<'a>: Time {
     /// Specify the callback for when the counter reaches the alarm
     /// value. If there was a previously installed callback this call
     /// replaces it.
-    fn set_alarm_client(&self, client: &'a dyn AlarmClient);
+    // fn set_alarm_client(&self, client: &'a AlarmDriver);
 
     /// Specify when the callback should be called and enable it. The
     /// callback will be enqueued when `Time::now() == reference + dt`. The
@@ -343,6 +358,7 @@ pub trait TimerClient {
 /// imprecision in return for a simpler API that doesn't require
 /// actual calculation of counter values. Software that requires more
 /// precisely timed callbacks should use the `Alarm` trait instead.
+#[verifier(external)]
 pub trait Timer<'a>: Time {
     /// Specify the callback to invoke when the timer interval expires.
     /// If there was a previously installed callback this call replaces it.
@@ -399,7 +415,7 @@ pub trait Timer<'a>: Time {
 // they can never be constructed, it forces them to be used purely as
 // type-markers which are guaranteed to be elided at runtime.
 
-enum FrequencyVal {
+pub enum FrequencyVal {
     /// 48MHz `Frequency`
     Freq48MHz,
     /// 32MHz `Frequency`
@@ -496,10 +512,17 @@ enum FrequencyVal {
 //     }
 // }
 
-verus! {
 /// u32 `Ticks`
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct Ticks32(u32);
+
+impl Clone for Ticks32 {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl Copy for Ticks32 {}
 
 impl From<u32> for Ticks32 {
     fn from(val: u32) -> Self {

@@ -9,11 +9,23 @@
 //! Last Modified: 1/10/2020
 use core::cell::Cell;
 use kernel::debug;
-use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks};
+use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks, Ticks24, Time};
 
 pub struct TestAlarm<'a, A: Alarm<'a>> {
     alarm: &'a A,
     ms: Cell<u32>,
+}
+
+impl<'a, A: Alarm<'a>> Time for TestAlarm<'a, A> {
+    fn get_freq() -> u32 {
+        1000
+    }
+
+    type Ticks = Ticks24;
+
+    fn now(&self) -> Self::Ticks {
+        0u32.into()
+    }
 }
 
 impl<'a, A: Alarm<'a>> TestAlarm<'a, A> {
@@ -33,7 +45,7 @@ impl<'a, A: Alarm<'a>> TestAlarm<'a, A> {
     fn set_next_alarm(&self, ms: u32) {
         self.ms.set(ms);
         let now: A::Ticks = self.alarm.now();
-        let freq: u64 = <A::Frequency>::frequency() as u64;
+        let freq: u64 = <A as Time>::get_freq() as u64;
         let lticks: u64 = ms as u64 * freq;
         let ticks: u32 = (lticks / 1000) as u32;
         debug!("Setting alarm to {} + {}", now.into_u32(), ticks);

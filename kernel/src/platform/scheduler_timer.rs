@@ -7,7 +7,7 @@
 //! Interface for use by the Kernel to configure timers which can preempt
 //! userspace processes.
 
-use crate::hil::time::{self, Frequency, Ticks};
+use crate::hil::time::{self, Ticks};
 
 /// Interface for the system scheduler timer.
 ///
