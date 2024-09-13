@@ -23,7 +23,8 @@ pub struct List<'a, T: 'a + ?Sized + ListNode<'a, T>> {
 }
 
 pub struct ListIterator<'a, T: 'a + ?Sized + ListNode<'a, T>> {
-    cur: Option<&'a T>,
+    // VERUS-TODO: not sure if this is needed
+    pub cur: Option<&'a T>,
 }
 
 impl<'a, T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {

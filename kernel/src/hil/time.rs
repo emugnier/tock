@@ -53,6 +53,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// usize, this value will be `0` (i.e., they can simply be
     /// truncated to usize::BITS bits).
     // VERUS-TODO: need to model saturating_sub
+    // #[verifier(external_body)]
     fn usize_padding() -> u32 {
         usize::BITS.saturating_sub(Self::width())
     }
@@ -516,13 +517,23 @@ pub enum FrequencyVal {
 #[derive(Debug)]
 pub struct Ticks32(u32);
 
+impl Copy for Ticks32 {}
+
+// Manually implementing the Clone trait
 impl Clone for Ticks32 {
-    fn clone(&self) -> Self {
-        Self(self.0)
+    fn clone(&self) -> Ticks32 {
+        // Simply return a copy of the value
+        *self
     }
 }
 
-impl Copy for Ticks32 {}
+// impl Clone for Ticks32 {
+//     fn clone(&self) -> Self {
+//         Self(self.0)
+//     }
+// }
+
+// impl Copy for Ticks32 {}
 
 impl From<u32> for Ticks32 {
     fn from(val: u32) -> Self {

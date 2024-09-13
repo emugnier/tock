@@ -28,15 +28,28 @@ struct TickDtReference<T: Ticks> {
     extended: bool,
 }
 
-impl<T: Ticks> TickDtReference<T> {
+// VERUS-TODO: Remove the Copy trait from T once this is fixed
+// cannot move out of `self.reference` which is behind a shared reference
+impl<T: Ticks + Copy + Clone> TickDtReference<T> {
     #[inline]
     fn reference_plus_dt(&self) -> T {
         self.reference.wrapping_add(self.dt)
     }
+
+    fn get_reference(&self) -> T {
+        self.reference
+    }
 }
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::reject_recursive_types(A)]
+pub struct ExAlarmDriver<'a, A: Alarm<'a>>(AlarmDriver<'a, A>);
+// pub struct AlarmDriver<'a, A: Alarm<'a>>
 
 /// An object to multiplex multiple "virtual" alarms over a single underlying alarm. A
 /// `VirtualMuxAlarm` is a node in a linked list of alarms that share the same underlying alarm.
+#[verifier::reject_recursive_types(A)]
 pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
     /// Underlying alarm which multiplexes all these virtual alarm.
     mux: &'a MuxAlarm<'a, A>,
@@ -52,14 +65,18 @@ pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
 }
 
 #[verifier::external_type_specification]
-#[verifier::external_body]
-#[verifier::reject_recursive_types(T)]
-// VERUS-TODO: Verify the ListLink type
+// VERUS-TODO: Verify the ListIterator type
 pub struct ExListIterator<'a, T: 'a + ?Sized +ListNode<'a, T>>(ListIterator<'a, T>);
+
+#[verifier::external_fn_specification]
+pub fn ExListIteratornext<'a, T: ?Sized + ListNode<'a, T>>(iter: &mut ListIterator<'a, T>) -> Option<&'a T> {
+    iter.next()
+}
+
 
 #[verifier::external_type_specification]
 #[verifier::external_body]
-#[verifier::reject_recursive_types(T)]
+#[verifier::accept_recursive_types(T)]
 // VERUS-TODO: Verify the ListLink type
 pub struct ExLinkList<'a, T: 'a + ?Sized>(ListLink<'a, T>);
 
@@ -74,10 +91,15 @@ pub const fn ExListLinkempty<'a, T: ?Sized>() -> ListLink<'a, T> {
     ListLink::empty()
 }
 
+#[verifier::external_trait_specification]
+trait ExListNode<'a, T: ?Sized> {
+    type ExternalTraitSpecificationFor: ListNode<'a, T>;
+
+}
 
 #[verifier::external_type_specification]
 #[verifier::external_body]
-#[verifier::reject_recursive_types(T)]
+#[verifier::accept_recursive_types(T)]
 pub struct ExList<'a, T: 'a + ?Sized + ListNode<'a, T>> (kernel::collections::list::List<'a, T>);
 
 #[verifier::external_fn_specification]
@@ -279,21 +301,21 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // up the alarm into two internal alarms. This ensures that our internal comparisons of
         // now outside of range [ref, ref + dt) will trigger correctly even with latency in the
         // system
-        // let dt_reference = if dt > half_max.wrapping_add(self.minimum_dt()) {
-        //     TickDtReference {
-        //         reference,
-        //         dt: dt.wrapping_sub(half_max),
-        //         extended: true,
-        //     }
-        // } else {
-        // VERUS-TODO: Go back to the previous implementation
+        // VERUS-TODO define less than and greater than for Ticks?
         // Reason, arithmetic operations are not supported on the Ticks type
-        let dt_reference = TickDtReference {
+        let dt_reference = if dt.into_usize() > half_max.wrapping_add(self.minimum_dt()).into_usize() {
+            TickDtReference {
+                reference,
+                dt: dt.wrapping_sub(half_max),
+                extended: true,
+            }
+        } else {
+        TickDtReference {
                 reference,
                 dt,
                 extended: false,
-            };
-        // };
+            }
+        };
         self.dt_reference.set(dt_reference);
         // Ensure local variable has correct value when used below
         let dt = dt_reference.dt;
@@ -377,6 +399,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for VirtualMuxAlarm<'a, A> {
 }
 
 /// Structure to control a set of virtual alarms multiplexed together on top of a single alarm.
+#[verifier::reject_recursive_types(A)]
 pub struct MuxAlarm<'a, A: Alarm<'a>> {
     /// Head of the linked list of virtual alarms multiplexed together.
     virtual_alarms: List<'a, VirtualMuxAlarm<'a, A>>,
@@ -453,23 +476,58 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
         // alarm based on it.  This needs to happen after firing all expired
         // alarms since those may have reset new alarms.
         let now = self.alarm.now();
-        let next = self
-            .virtual_alarms
-            .iter()
-            .filter(|cur| cur.armed.get())
-            .min_by_key(|cur| {
-                let when = cur.dt_reference.get();
-                // If the alarm has already expired, then it should be
-                // considered as the earliest possible (0 ticks), so it
-                // will trigger as soon as possible. This can happen
-                // if the alarm expired *after* it was examined in the
-                // above loop.
-                if !now.within_range(when.reference, when.reference_plus_dt()) {
-                    A::Ticks::from(0u32)
-                } else {
-                    when.reference_plus_dt().wrapping_sub(now)
-                }
-            });
+        // let next = self
+        //     .virtual_alarms
+        //     .iter()
+        //     .filter(|cur| cur.armed.get())
+        //     .min_by_key(|cur| {
+        //         let when = cur.dt_reference.get();
+        //         // If the alarm has already expired, then it should be
+        //         // considered as the earliest possible (0 ticks), so it
+        //         // will trigger as soon as possible. This can happen
+        //         // if the alarm expired *after* it was examined in the
+        //         // above loop.
+        //         if !now.within_range(when.reference, when.reference_plus_dt()) {
+        //             A::Ticks::from(0u32)
+        //         } else {
+        //             when.reference_plus_dt().wrapping_sub(now)
+        //         }
+        //     })
+        let mut iterator = ListIterator {
+            cur: self.virtual_alarms.head(),
+        };
+        let mut min_ticks = None;
+        let mut min_alarm = None;
+
+        loop {
+            match iterator.next() {
+                Some(cur) => {
+                    if cur.armed.get() {
+                        let when = cur.dt_reference.get();
+                        let ticks = if !now.within_range(when.reference, when.reference_plus_dt()) {
+                            A::Ticks::from_or_max(0u64)
+                        } else {
+                            when.reference_plus_dt().wrapping_sub(now)
+                        };
+
+                        match min_ticks {
+                            None => {
+                                min_ticks = Some(ticks);
+                                min_alarm = Some(cur);
+                            },
+                            Some(min) if ticks.into_usize() < min.into_usize() => {
+                                min_ticks = Some(ticks);
+                                min_alarm = Some(cur);
+                            },
+                            _ => {}
+                        }
+                    }
+                },
+                None => break,
+            }
+        }
+
+        let next = min_alarm;
 
         // Set the alarm.
         if let Some(valrm) = next {
