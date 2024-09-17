@@ -30,7 +30,7 @@ pub fn ex_saturatingsub(a: u32, b: u32) -> u32 {
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
-pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
+pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Width of the actual underlying timer in bits.
     ///
     /// The maximum value that *will* be attained by this timer should
@@ -68,14 +68,14 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// to convert the underlying timer's frequency into the padded
     /// ticks frequency in Hertz.
     fn into_usize_left_justified(self) -> usize {
-        self.into_usize() << Self::usize_padding()
+        self.into_usize()
     }
 
     /// Convert the generic [`Frequency`] argument into a frequency
     /// (Hertz) describing a left-justified ticks value as returned by
     /// [`Ticks::into_usize_left_justified`].
     fn usize_left_justified_scale_freq() -> u32 {
-        10 << Self::usize_padding()
+        10
     }
 
     /// Converts the type into a `u32`, stripping the higher bits
@@ -110,7 +110,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// convert the underlying timer's frequency into the padded ticks
     /// frequency in Hertz.
     fn into_u32_left_justified(self) -> u32 {
-        self.into_u32() << Self::u32_padding()
+        self.into_u32()
     }
 
     /// Convert the generic [`Frequency`] argument into a frequency
@@ -118,7 +118,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// [`Ticks::into_u32_left_justified`].
     fn u32_left_justified_scale_freq() -> u32 {
         // VERUS-TODO need to make this frequency thing cleaner
-        10 << Self::u32_padding()
+        10
     }
 
     /// Add two values, wrapping around on overflow using standard
@@ -207,16 +207,20 @@ pub trait ConvertTicks<T: Ticks> {
 }
 
 impl<T: Time + ?Sized> ConvertTicks<<T as Time>::Ticks> for T {
+    #[verifier(external_body)]
     #[inline]
     fn ticks_from_seconds(&self, s: u32) -> <T as Time>::Ticks {
         let val = <T as Time>::get_freq() as u64 * s as u64;
         <T as Time>::Ticks::from_or_max(val)
     }
+    #[verifier(external_body)]
     #[inline]
     fn ticks_from_ms(&self, ms: u32) -> <T as Time>::Ticks {
         let val = <T as Time>::get_freq() as u64 * ms as u64;
         <T as Time>::Ticks::from_or_max(val / 1_000)
     }
+
+    #[verifier(external_body)]
     #[inline]
     fn ticks_from_us(&self, us: u32) -> <T as Time>::Ticks {
         let val = <T as Time>::get_freq() as u64 * us as u64;
