@@ -23,8 +23,17 @@ use vstd::prelude::*;
 
 verus! {
 
+pub open spec fn spec_saturating_sub(lhs: int, rhs: int) -> int {
+    if lhs >= rhs {
+        lhs - rhs
+    } else {
+        0
+    }
+}
 #[verifier(external_fn_specification)]
-pub fn ex_saturatingsub(a: u32, b: u32) -> u32 {
+pub fn ex_saturatingsub(a: u32, b: u32) -> (ret: u32)
+    ensures ret == spec_saturating_sub(a as int, b as int)
+{
     a.saturating_sub(b)
 }
 
@@ -40,7 +49,12 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// The return value is a `u32`, in accordance with the bit widths
     /// specified using the BITS associated const on Rust integer
     /// types.
-    fn width() -> u32;
+    spec fn spec_width() -> u32;
+
+    fn width() -> (ret: u32)
+      ensures
+        ret == Self::spec_width()
+    ;
 
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
@@ -54,7 +68,11 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// truncated to usize::BITS bits).
     // VERUS-TODO: need to model saturating_sub
     // #[verifier(external_body)]
-    fn usize_padding() -> u32 {
+    fn usize_padding() -> (ret: u32)
+      ensures
+      (Self::spec_width() > usize::BITS) ==> ret == 0,
+      (Self::spec_width() <= usize::BITS) ==> ret == usize::BITS - Self::spec_width()
+    {
         usize::BITS.saturating_sub(Self::width())
     }
 
@@ -546,6 +564,9 @@ impl From<u32> for Ticks32 {
 }
 
 impl Ticks for Ticks32 {
+    closed spec fn spec_width() -> u32 {
+        32
+    }
     fn width() -> u32 {
         32
     }
@@ -639,6 +660,9 @@ impl From<u32> for Ticks24 {
 }
 
 impl Ticks for Ticks24 {
+    closed spec fn spec_width() -> u32 {
+        24
+    }
     fn width() -> u32 {
         24
     }
@@ -717,7 +741,6 @@ impl PartialEq for Ticks24 {
 }
 
 impl Eq for Ticks24 {}
-}
 
 /// 16-bit `Ticks`
 #[derive(Clone, Copy, Debug)]
@@ -742,6 +765,9 @@ impl Ticks16 {
 }
 
 impl Ticks for Ticks16 {
+    closed spec fn spec_width() -> u32 {
+        16
+    }
     fn width() -> u32 {
         16
     }
@@ -786,6 +812,7 @@ impl Ticks for Ticks16 {
     }
 
     #[inline]
+    #[verifier(external_body)]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
@@ -803,6 +830,7 @@ impl PartialOrd for Ticks16 {
 }
 
 impl Ord for Ticks16 {
+    #[verifier(external_body)]
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
@@ -839,6 +867,9 @@ impl From<u64> for Ticks64 {
 }
 
 impl Ticks for Ticks64 {
+    closed spec fn spec_width() -> u32 {
+        64
+    }
     fn width() -> u32 {
         64
     }
@@ -879,6 +910,7 @@ impl Ticks for Ticks64 {
     }
 
     #[inline]
+    #[verifier(external_body)]
     fn saturating_scale(self, num: u32, den: u32) -> u32 {
         let scaled = self.0.saturating_mul(num as u64) / den as u64;
         if scaled < u32::MAX as u64 {
@@ -896,6 +928,7 @@ impl PartialOrd for Ticks64 {
 }
 
 impl Ord for Ticks64 {
+    #[verifier(external_body)]
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
     }
@@ -908,6 +941,7 @@ impl PartialEq for Ticks64 {
 }
 
 impl Eq for Ticks64 {}
+}
 
 #[cfg(test)]
 mod tests {
