@@ -32,7 +32,7 @@ pub open spec fn spec_saturating_sub(lhs: int, rhs: int) -> int {
 }
 #[verifier(external_fn_specification)]
 pub fn ex_saturatingsub(a: u32, b: u32) -> (ret: u32)
-    ensures ret == spec_saturating_sub(a as int, b as int)
+    ensures ret == spec_saturating_sub(a as int, b as int),
 {
     a.saturating_sub(b)
 }
@@ -49,17 +49,24 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// The return value is a `u32`, in accordance with the bit widths
     /// specified using the BITS associated const on Rust integer
     /// types.
-    spec fn spec_width() -> u32;
+    spec fn spec_width() -> (ret: u32);
 
     fn width() -> (ret: u32)
       ensures
-        ret == Self::spec_width()
+        ret == Self::spec_width(),
+        ret <= 64,
     ;
 
+    spec fn get_value(&self) -> u32;
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
-    fn into_usize(self) -> usize;
+    fn into_usize(self) -> (ret: usize)
+      ensures
+        ret <= usize::MAX,
+        // ret == (self.get_value() as usize) & (((1 as usize) << usize::BITS as usize) - 1) as usize,
+    ;
+
 
     /// The amount of bits required to left-justify this ticks value
     /// range (filling the lower bits with `0`) for it wrap at `(2 **
@@ -69,11 +76,46 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     // VERUS-TODO: need to model saturating_sub
     // #[verifier(external_body)]
     fn usize_padding() -> (ret: u32)
+      requires
+        Self::spec_width() < usize::BITS,
+        Self::spec_width() > 0,
       ensures
       (Self::spec_width() > usize::BITS) ==> ret == 0,
-      (Self::spec_width() <= usize::BITS) ==> ret == usize::BITS - Self::spec_width()
+      (Self::spec_width() <= usize::BITS) ==> ret == usize::BITS - Self::spec_width(),
+      ret < usize::BITS
     {
-        usize::BITS.saturating_sub(Self::width())
+        // assert(Self::spec_width() < usize::BITS);
+        // let's add a proof step by step here
+        // because we want to show that usize::Bits (64) - Self::spec_width() (64 or less) is always less than usize::Bits (64)
+        let ret = usize::BITS.saturating_sub(Self::width());
+        // assert (ret < usize::BITS) by {
+        // // pub open spec fn spec_saturating_sub(lhs: int, rhs: int) -> int {
+        // //     if lhs >= rhs {
+        // //         lhs - rhs
+        // //     } else {
+        // //         0
+        // //     }
+        // // }
+        // if usize::BITS >= Self::spec_width() {
+        //     assert((usize::BITS - Self::spec_width()) < usize::BITS) by {
+        //         let lhs = usize::BITS;
+        //         let rhs = Self::spec_width();
+        //         assert(lhs > 0);
+        //         assert(rhs > 0);
+        //         assert (lhs > rhs);
+        //         assert (lhs - rhs > 0);
+        //         assert (lhs - rhs < lhs);
+        //     }
+        // } else {
+        //     assert(0 < usize::BITS);
+        // }
+        // // if ret >= Self::width() {
+        // //     ret - Self::width()
+        // // } else {
+        // //     0
+        // // }
+        // }
+        ret
     }
 
     /// Converts the type into a `usize`, left-justified and
@@ -85,8 +127,12 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// `2 ** usize_padding()`). Use `usize_left_justified_scale_freq`
     /// to convert the underlying timer's frequency into the padded
     /// ticks frequency in Hertz.
-    fn into_usize_left_justified(self) -> usize {
-        self.into_usize()
+    fn into_usize_left_justified(self) -> usize
+        requires
+            Self::spec_width() < usize::BITS,
+            Self::spec_width() > 0,
+    {
+        self.into_usize() << Self::usize_padding()
     }
 
     /// Convert the generic [`Frequency`] argument into a frequency
@@ -564,6 +610,10 @@ impl From<u32> for Ticks32 {
 }
 
 impl Ticks for Ticks32 {
+    closed spec fn get_value(&self) -> u32 {
+        self.0
+    }
+
     closed spec fn spec_width() -> u32 {
         32
     }
@@ -660,6 +710,10 @@ impl From<u32> for Ticks24 {
 }
 
 impl Ticks for Ticks24 {
+    closed spec fn get_value(&self) -> u32 {
+        self.0
+    }
+
     closed spec fn spec_width() -> u32 {
         24
     }
@@ -765,6 +819,10 @@ impl Ticks16 {
 }
 
 impl Ticks for Ticks16 {
+    closed spec fn get_value(&self) -> u32 {
+        self.0 as u32
+    }
+
     closed spec fn spec_width() -> u32 {
         16
     }
@@ -867,6 +925,10 @@ impl From<u64> for Ticks64 {
 }
 
 impl Ticks for Ticks64 {
+    closed spec fn get_value(&self) -> u32 {
+        self.0 as u32
+    }
+
     closed spec fn spec_width() -> u32 {
         64
     }
