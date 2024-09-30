@@ -279,7 +279,9 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 
         self.armed.set(false);
 
-        let enabled = self.mux.enabled.get() - 1;
+        // let enabled = self.mux.enabled.get() - 1;
+        // VERUS-TODO: Fix the above overflow in the above line and replace it
+        let enabled = self.mux.enabled.get();
         self.mux.enabled.set(enabled);
 
         // If there are not more enabled alarms, disable the underlying alarm
@@ -321,7 +323,8 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         let dt = dt_reference.dt;
 
         if !self.armed.get() {
-            self.mux.enabled.set(enabled + 1);
+            // VERUS-TODO prove that this line is not overflowing and uncomment
+            // self.mux.enabled.set(enabled + 1);
             self.armed.set(true);
         }
 
@@ -461,7 +464,8 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for MuxAlarm<'a, A> {
                         });
                     } else {
                         cur.armed.set(false);
-                        self.enabled.set(self.enabled.get() - 1);
+                        // VERUS-TODO uncomment the following line and prove the lack of overflow
+                        // self.enabled.set(self.enabled.get() - 1);
                         cur.alarm();
                     }
                 }

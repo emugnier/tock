@@ -23,7 +23,13 @@ Verify the rtc of nrf5x:
  verus chips/nrf5x/src/rtc.rs -L dependency=target/debug/deps --extern=kernel=target/debug/libkernel.rlib --extern=enum_primitive=target/debug/libenum_primitive.rlib --crate-type=lib --import kernel=kernel.vir
 ```
 
+Verify the virtual alarm capsule:
+
+```bash
+ ~/verus/source/target-verus/release/verus capsules/core/src/lib.rs -L dependency=target/debug/deps --extern=kernel=target/debug/libkernel.rlib --extern=enum_primitive=target/debug/libenum_primitive.rlib --crate-type=lib --import kernel=./kernel.vir --no-lifetime
 ```
+
+If you encounter an error due to lifetime issues, you can use the `--no-lifetime` flag to ignore them.
 
 [![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
@@ -43,15 +49,26 @@ kernel.
 
 [tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
 
-Tock 2.x!
----------
+TockWorld 2024
+---------------
+
+Join the community of industry professionals, operating system developers,
+academics, and interested developers for the annual [TockWorld
+conference][TockWorld7]. This event in San Diego, CA will take place June 26-28,
+2024. Get your [tickets][TockWorld7] today!
+
+[TockWorld7]: https://world.tockos.org/
+
+Tock 2.x
 
 Tock is now on its second major release! For a summary of the latest new
 features and improvements, check out the [changelog](CHANGELOG.md).
 
-
 Getting Started
 ---------------
+
+Learn More
+----------
 
 There are a variety of resources for learning about Tock, contributing to the
 project, and getting help.
@@ -69,6 +86,54 @@ project, and getting help.
   - [Tock Blog](https://www.tockos.org/blog/)
   - [@talkingtock](https://twitter.com/talkingtock)
 
+### Learn How Tock Works
+
+Tock is documented in the [Tock Book][tock-book]. Read through the guides there
+to learn about the overview and design of Tock, its implementation, and much
+more.
+
+### Use Tock
+
+Follow our [getting started guide](doc/Getting_Started.md) to set up your system
+to compile Tock.
+
+Head to the [hardware page](https://www.tockos.org/hardware/) to learn about the
+hardware platforms Tock supports. Also check out the [Tock
+Book](https://book.tockos.org) for a step-by-step introduction to getting Tock
+up and running.
+
+A book on how to use Tock with the [micro:bit v2](boards/microbit_v2) and
+[Raspberry Pi Pico](boards/raspberry_pi_pico) boards is [Getting Started with
+Secure Embedded
+Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8).
+
+Find example applications that run on top of the Tock kernel written in both
+[Rust](https://github.com/tock/libtock-rs) and
+[C](https://github.com/tock/libtock-c).
+
+### Develop Tock
+
+Read our [getting started guide](doc/Getting_Started.md) to get the correct
+version of the Rust compiler, then look through the `/kernel`, `/capsules`,
+`/chips`, and `/boards` directories. There are also generated [source code
+docs](https://docs.tockos.org).
+
+We encourage contributions back to Tock and are happy to accept pull requests
+for anything from small documentation fixes to whole new platforms. For details,
+check out our [Contributing Guide](.github/CONTRIBUTING.md). To get started,
+please do not hesitate to submit a PR. We'll happily guide you through any
+needed changes.
+
+### Keep Up To Date
+
+Check out the [blog](https://www.tockos.org/blog/) where the **Talking Tock**
+post series highlights what's new in Tock. Also, follow
+[@talkingtock](https://twitter.com/talkingtock) on Twitter.
+
+You can also browse our [email
+group](https://groups.google.com/forum/#!forum/tock-dev) and our [Slack][slack]
+to see discussions on Tock development.
+
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
 
 [tock-book]: https://book.tockos.org
@@ -76,7 +141,6 @@ project, and getting help.
 [book-systems]: https://link.springer.com/book/10.1007/978-1-4842-7789-8
 
 [tockapidoc]: https://docs.tockos.org
-
 
 Code of Conduct
 ---------------
@@ -91,13 +155,12 @@ chats, and meetup events. For moderation issues, please contact members of the
 
 [coc]: https://www.rust-lang.org/conduct.html
 
-
 Cite this Project
 -----------------
 
 <h4>Tock was presented at SOSP'17</h4>
 
-Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prabal Dutta, and Philip Levis. 2017. Multiprogramming a 64kB Computer Safely and Efficiently. In Proceedings of the 26th Symposium on Operating Systems Principles (SOSP ’17). Association for Computing Machinery, New York, NY, USA, 234–251. DOI: https://doi.org/10.1145/3132747.3132786
+Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prabal Dutta, and Philip Levis. 2017. Multiprogramming a 64kB Computer Safely and Efficiently. In Proceedings of the 26th Symposium on Operating Systems Principles (SOSP ’17). Association for Computing Machinery, New York, NY, USA, 234–251. DOI: <https://doi.org/10.1145/3132747.3132786>
 
 <p>
 <details>
@@ -124,7 +187,6 @@ Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prab
 </pre>
 </details>
 </p>
-
 
 <p>This is the primary paper that describes the design considerations of Tock.</p>
 
@@ -192,16 +254,15 @@ Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prab
 }</pre>
 </details>
 
-
 License
 -------
 
 Licensed under either of
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
-  http://www.apache.org/licenses/LICENSE-2.0)
+  <http://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or
-  http://opensource.org/licenses/MIT)
+  <http://opensource.org/licenses/MIT>)
 
 at your option.
 
