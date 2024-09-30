@@ -57,14 +57,14 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
         ret <= 64,
     ;
 
-    spec fn get_value(&self) -> u32;
+    spec fn get_value(&self) -> int;
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
     fn into_usize(self) -> (ret: usize)
       ensures
         ret <= usize::MAX,
-        // ret == (self.get_value() as usize) & (((1 as usize) << usize::BITS as usize) - 1) as usize,
+        ret == (self.get_value() as usize), // replace by a spec
     ;
 
 
@@ -127,13 +127,18 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// `2 ** usize_padding()`). Use `usize_left_justified_scale_freq`
     /// to convert the underlying timer's frequency into the padded
     /// ticks frequency in Hertz.
-    fn into_usize_left_justified(self) -> usize
-        requires
-            Self::spec_width() < usize::BITS,
-            Self::spec_width() > 0,
-    {
-        self.into_usize() << Self::usize_padding()
-    }
+    fn into_usize_left_justified(self) -> (result: usize)
+    requires Self::spec_width() < usize::BITS,
+             Self::spec_width() > 0,
+    // ensures result == result & (((1usize << usize::BITS) - 1) as usize)
+    ensures result == result & (((1usize << usize::BITS) - 1usize) as usize)
+    // ensures result as int == result as int & (((1 as int) << usize::BITS as int) - 1)
+
+{
+    // self.into_usize() << Self::usize_padding()
+        let shifted_result = self.into_usize() << Self::usize_padding();
+    shifted_result
+}
 
     /// Convert the generic [`Frequency`] argument into a frequency
     /// (Hertz) describing a left-justified ticks value as returned by
@@ -610,8 +615,8 @@ impl From<u32> for Ticks32 {
 }
 
 impl Ticks for Ticks32 {
-    closed spec fn get_value(&self) -> u32 {
-        self.0
+    closed spec fn get_value(&self) -> int {
+        self.0 as int
     }
 
     closed spec fn spec_width() -> u32 {
@@ -621,8 +626,12 @@ impl Ticks for Ticks32 {
         32
     }
 
-    fn into_usize(self) -> usize {
-        self.0 as usize
+    fn into_usize(self) -> usize
+    {
+        let ret = self.0 as usize;
+        assert(ret <= self.get_value() as usize);
+        ret
+
     }
 
     fn into_u32(self) -> u32 {
@@ -710,8 +719,8 @@ impl From<u32> for Ticks24 {
 }
 
 impl Ticks for Ticks24 {
-    closed spec fn get_value(&self) -> u32 {
-        self.0
+    closed spec fn get_value(&self) -> int {
+        self.0 as int
     }
 
     closed spec fn spec_width() -> u32 {
@@ -722,6 +731,7 @@ impl Ticks for Ticks24 {
     }
 
     fn into_usize(self) -> usize {
+        assert(self.0 == self.get_value());
         self.0 as usize
     }
 
@@ -819,8 +829,8 @@ impl Ticks16 {
 }
 
 impl Ticks for Ticks16 {
-    closed spec fn get_value(&self) -> u32 {
-        self.0 as u32
+    closed spec fn get_value(&self) -> int {
+        self.0 as int
     }
 
     closed spec fn spec_width() -> u32 {
@@ -831,6 +841,7 @@ impl Ticks for Ticks16 {
     }
 
     fn into_usize(self) -> usize {
+        assert(self.0 == self.get_value());
         self.0 as usize
     }
 
@@ -925,8 +936,8 @@ impl From<u64> for Ticks64 {
 }
 
 impl Ticks for Ticks64 {
-    closed spec fn get_value(&self) -> u32 {
-        self.0 as u32
+    closed spec fn get_value(&self) -> int {
+        self.0 as int
     }
 
     closed spec fn spec_width() -> u32 {
@@ -937,6 +948,7 @@ impl Ticks for Ticks64 {
     }
 
     fn into_usize(self) -> usize {
+        assert(self.0 as int == self.get_value());
         self.0 as usize
     }
 
