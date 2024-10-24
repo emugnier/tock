@@ -1,0 +1,59 @@
+# Variables
+VERUS_DIR = ~/verus/source/target-verus/release
+DEPS_DIR = target/debug
+KERNEL_VIR = kernel.vir
+
+# Crates
+TOCK_REGISTERS = $(DEPS_DIR)/libtock_registers.rlib
+TOCK_CELLS = $(DEPS_DIR)/libtock_cells.rlib
+TOCK_TBF = $(DEPS_DIR)/libtock_tbf.rlib
+KERNEL = $(DEPS_DIR)/libkernel.rlib
+ENUM_PRIMITIVE = $(DEPS_DIR)/libenum_primitive.rlib
+
+all: compile_all verify_all
+
+# Compile targets
+compile_all: compile_tock_registers compile_tock_cells compile_tock_tbf compile_tock_kernel compile_enum_primitive
+
+compile_tock_registers:
+	cargo build --package tock-registers
+
+compile_tock_cells:
+	cargo build --package tock-cells
+
+compile_tock_tbf:
+	cargo build --package tock-tbf
+
+compile_tock_kernel:
+	cargo build --package kernel
+
+compile_enum_primitive:
+	cargo build --package enum_primitive
+
+# Verification targets
+
+verify_all: verify_kernel verify_virtual_alarm verify_rtc_nrf5x
+
+verify_kernel:
+	verus kernel/src/lib.rs -L dependency=$(DEPS_DIR)/deps \
+		--extern=tock_registers=$(TOCK_REGISTERS) \
+		--extern=tock_cells=$(TOCK_CELLS) \
+		--extern=tock_tbf=$(TOCK_TBF) \
+		--crate-type=lib --export=$(KERNEL_VIR)
+
+verify_virtual_alarm:
+	verus capsules/core/src/lib.rs -L dependency=$(DEPS_DIR)/deps \
+		--extern=kernel=$(KERNEL) \
+		--extern=enum_primitive=$(ENUM_PRIMITIVE) \
+		--crate-type=lib --import kernel=$(KERNEL_VIR) --no-lifetime
+
+verify_rtc_nrf5x:
+	verus chips/nrf5x/src/rtc.rs -L dependency=$(DEPS_DIR)/deps \
+		--extern=kernel=$(KERNEL) \
+		--extern=enum_primitive=$(ENUM_PRIMITIVE) \
+		--crate-type=lib --import kernel=$(KERNEL_VIR)
+
+# Clean
+clean:
+	cargo clean
+	rm -f $(KERNEL_VIR)

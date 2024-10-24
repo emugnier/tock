@@ -193,19 +193,18 @@ impl<'a> Alarm<'a> for Rtc<'a> {
     // }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        // const SYNC_TICS: u32 = 2;
+        const SYNC_TICS: u32 = 2;
         let regs = &*self.registers;
 
-        // let mut expire = reference.wrapping_add(dt);
+        let mut expire = reference.wrapping_add(dt);
 
         let now = self.now();
-        // let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
+        let earliest_possible = now.wrapping_add(Self::Ticks::from(SYNC_TICS));
 
-        // if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
-        // {
-        //     expire = earliest_possible;
-        // }
-        let expire = calculate_expire(reference, dt, now);
+        if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
+        {
+            expire = earliest_possible;
+        }
 
         regs.cc[0].write(Counter::VALUE.val(expire.into_u32()));
         regs.events_compare[0].write(Event::READY::CLEAR);
@@ -233,20 +232,4 @@ impl<'a> Alarm<'a> for Rtc<'a> {
     }
 }
 
-fn calculate_expire(reference: time::Ticks24, dt: time::Ticks24, now: time::Ticks24) -> time::Ticks24 {
-    let SYNC_TICS: u32 = 2;
-
-    // DANGER WITH NOW!!
-
-    let mut expire = reference.wrapping_add(dt);
-
-    let earliest_possible = now.wrapping_add(time::Ticks24::from(SYNC_TICS));
-
-    if !now.within_range(reference, expire) || expire.wrapping_sub(now).into_u32() <= SYNC_TICS
-    {
-        expire = earliest_possible;
-    }
-
-    expire
-}
 }

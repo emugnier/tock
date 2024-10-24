@@ -9,7 +9,7 @@
 //! Last Modified: 1/10/2020
 use core::cell::Cell;
 use kernel::debug;
-use kernel::hil::time::{Alarm, AlarmClient, Frequency, Ticks, Ticks24, Time};
+use kernel::hil::time::{Alarm, AlarmClient, Ticks, Ticks24, Time};
 
 pub struct TestAlarm<'a, A: Alarm<'a>> {
     alarm: &'a A,

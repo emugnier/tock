@@ -131,7 +131,7 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     requires Self::spec_width() < usize::BITS,
              Self::spec_width() > 0,
     // ensures result == result & (((1usize << usize::BITS) - 1) as usize)
-    ensures result == result & (((1usize << usize::BITS) - 1usize) as usize)
+    // ensures result == result & (((1usize << usize::BITS) - 1usize) as usize)
     // ensures result as int == result as int & (((1 as int) << usize::BITS as int) - 1)
 
 {

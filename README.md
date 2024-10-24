@@ -2,32 +2,19 @@
 
 ## Verus Tock
 
+**For the libraries such as `builtin_macros` and `vstd` to compile,
+you need to have verus installed in this exact relative path:
+`../verus`**
+
 Needs to use Rust stable and potentially a specific version that works with Verus.
-Compile all the modules needed first:
 
-- tock-registers
-- tock-cells
-- tock-tbf
-- tock-kernel
-- enum-primitive
-
-Verify the kernel:
+To run the whole verification pipeline:
 
 ```bash
-verus kernel/src/lib.rs -L dependency=target/debug/deps --extern=tock_registers=target/debug/libtock_registers.rlib --crate-type=lib --extern=tock_cells=target/debug/libtock_cells.rlib --extern=tock_tbf=target/debug/libtock_tbf.rlib --export kernel.vir
+make -f Verifile all
 ```
 
-Verify the rtc of nrf5x:
-
-```bash
- verus chips/nrf5x/src/rtc.rs -L dependency=target/debug/deps --extern=kernel=target/debug/libkernel.rlib --extern=enum_primitive=target/debug/libenum_primitive.rlib --crate-type=lib --import kernel=kernel.vir
-```
-
-Verify the virtual alarm capsule:
-
-```bash
- ~/verus/source/target-verus/release/verus capsules/core/src/lib.rs -L dependency=target/debug/deps --extern=kernel=target/debug/libkernel.rlib --extern=enum_primitive=target/debug/libenum_primitive.rlib --crate-type=lib --import kernel=./kernel.vir --no-lifetime
-```
+Run the formatter:
 
 If you encounter an error due to lifetime issues, you can use the `--no-lifetime` flag to ignore them.
 

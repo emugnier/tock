@@ -8,7 +8,7 @@ use core::cell::Cell;
 use vstd::prelude::*;
 
 use kernel::collections::list::{List, ListIterator, ListLink, ListNode};
-use kernel::hil::time::{self, Alarm, FrequencyVal, Ticks, Ticks32, Time};
+use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
