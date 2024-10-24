@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Set up Rust
+      run: rustup toolchain add 1.76.0 --profile minimal
     - name: Get Verus FMT
       run: cargo install verusfmt
     - name: Format
