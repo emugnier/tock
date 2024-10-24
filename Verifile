@@ -10,7 +10,20 @@ TOCK_TBF = $(DEPS_DIR)/libtock_tbf.rlib
 KERNEL = $(DEPS_DIR)/libkernel.rlib
 ENUM_PRIMITIVE = $(DEPS_DIR)/libenum_primitive.rlib
 
-all: compile_all verify_all
+# File using verus
+RS_FILES = capsules/core/src/virtualizers/virtual_timer.rs kernel/src/hil/time.rs capsules/core/src/virtualizers/virtual_alarm.rs kernel/src/collections/list.rs
+
+all: compile_all verify_all format_check
+
+format_check:
+	@for f in $(RS_FILES); do \
+		verusfmt --verus-only --check $$f; \
+	done
+
+format:
+	@for f in $(RS_FILES); do \
+		verusfmt $$f --verus-only; \
+	done
 
 # Compile targets
 compile_all: compile_tock_registers compile_tock_cells compile_tock_tbf compile_tock_kernel compile_enum_primitive

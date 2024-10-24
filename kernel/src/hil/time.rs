@@ -1,7 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
-
 //! Hardware agnostic interfaces for time and timers within the Tock
 //! kernel.
 //!
@@ -14,7 +13,6 @@
 //! ticks and 16MHz frequency).  Hardware counter implementations and
 //! peripherals can represent the actual hardware units an translate
 //! into these more general ones.
-
 use crate::ErrorCode;
 use core::cmp::Ordering;
 use core::fmt;
@@ -30,9 +28,11 @@ pub open spec fn spec_saturating_sub(lhs: int, rhs: int) -> int {
         0
     }
 }
+
 #[verifier(external_fn_specification)]
 pub fn ex_saturatingsub(a: u32, b: u32) -> (ret: u32)
-    ensures ret == spec_saturating_sub(a as int, b as int),
+    ensures
+        ret == spec_saturating_sub(a as int, b as int),
 {
     a.saturating_sub(b)
 }
@@ -52,21 +52,21 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     spec fn spec_width() -> (ret: u32);
 
     fn width() -> (ret: u32)
-      ensures
-        ret == Self::spec_width(),
-        ret <= 64,
+        ensures
+            ret == Self::spec_width(),
+            ret <= 64,
     ;
 
     spec fn get_value(&self) -> int;
+
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
     fn into_usize(self) -> (ret: usize)
-      ensures
-        ret <= usize::MAX,
-        ret == (self.get_value() as usize), // replace by a spec
+        ensures
+            ret <= usize::MAX,
+            ret == (self.get_value() as usize),  // replace by a spec
     ;
-
 
     /// The amount of bits required to left-justify this ticks value
     /// range (filling the lower bits with `0`) for it wrap at `(2 **
@@ -76,13 +76,13 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     // VERUS-TODO: need to model saturating_sub
     // #[verifier(external_body)]
     fn usize_padding() -> (ret: u32)
-      requires
-        Self::spec_width() < usize::BITS,
-        Self::spec_width() > 0,
-      ensures
-      (Self::spec_width() > usize::BITS) ==> ret == 0,
-      (Self::spec_width() <= usize::BITS) ==> ret == usize::BITS - Self::spec_width(),
-      ret < usize::BITS
+        requires
+            Self::spec_width() < usize::BITS,
+            Self::spec_width() > 0,
+        ensures
+            (Self::spec_width() > usize::BITS) ==> ret == 0,
+            (Self::spec_width() <= usize::BITS) ==> ret == usize::BITS - Self::spec_width(),
+            ret < usize::BITS,
     {
         // assert(Self::spec_width() < usize::BITS);
         // let's add a proof step by step here
@@ -128,17 +128,19 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// to convert the underlying timer's frequency into the padded
     /// ticks frequency in Hertz.
     fn into_usize_left_justified(self) -> (result: usize)
-    requires Self::spec_width() < usize::BITS,
-             Self::spec_width() > 0,
+        requires
+            Self::spec_width() < usize::BITS,
+            Self::spec_width()
+                > 0,
     // ensures result == result & (((1usize << usize::BITS) - 1) as usize)
     // ensures result == result & (((1usize << usize::BITS) - 1usize) as usize)
     // ensures result as int == result as int & (((1 as int) << usize::BITS as int) - 1)
 
-{
-    // self.into_usize() << Self::usize_padding()
+    {
+        // self.into_usize() << Self::usize_padding()
         let shifted_result = self.into_usize() << Self::usize_padding();
-    shifted_result
-}
+        shifted_result
+    }
 
     /// Convert the generic [`Frequency`] argument into a frequency
     /// (Hertz) describing a left-justified ticks value as returned by
@@ -193,6 +195,7 @@ pub trait Ticks: Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Add two values, wrapping around on overflow using standard
     /// unsigned arithmetic.
     fn wrapping_add(self, other: Self) -> Self;
+
     /// Subtract two values, wrapping around on underflow using standard
     /// unsigned arithmetic.
     fn wrapping_sub(self, other: Self) -> Self;
@@ -231,6 +234,7 @@ pub trait Frequency {
 pub trait Time {
     /// The number of ticks per second
     fn get_freq() -> u32;
+
     /// The width of a time value
     type Ticks: Ticks;
 
@@ -251,7 +255,6 @@ pub trait ConvertTicks<T: Ticks> {
     /// Returns the number of ticks in the provided number of milliseconds,
     /// rounding down any fractions. If the value overflows Ticks it
     /// returns `Ticks::max_value()`.
-
     fn ticks_from_ms(&self, ms: u32) -> T;
 
     /// Returns the number of ticks in the provided number of microseconds,
@@ -282,6 +285,7 @@ impl<T: Time + ?Sized> ConvertTicks<<T as Time>::Ticks> for T {
         let val = <T as Time>::get_freq() as u64 * s as u64;
         <T as Time>::Ticks::from_or_max(val)
     }
+
     #[verifier(external_body)]
     #[inline]
     fn ticks_from_ms(&self, ms: u32) -> <T as Time>::Ticks {
@@ -300,10 +304,12 @@ impl<T: Time + ?Sized> ConvertTicks<<T as Time>::Ticks> for T {
     fn ticks_to_seconds(&self, tick: <T as Time>::Ticks) -> u32 {
         tick.saturating_scale(1, <T as Time>::get_freq())
     }
+
     #[inline]
     fn ticks_to_ms(&self, tick: <T as Time>::Ticks) -> u32 {
         tick.saturating_scale(1_000, <T as Time>::get_freq())
     }
+
     #[inline]
     fn ticks_to_us(&self, tick: <T as Time>::Ticks) -> u32 {
         tick.saturating_scale(1_000_000, <T as Time>::get_freq())
@@ -312,7 +318,9 @@ impl<T: Time + ?Sized> ConvertTicks<<T as Time>::Ticks> for T {
 
 /// Represents a static moment in time, that does not change over
 /// repeated calls to `Time::now`.
-pub trait Timestamp: Time {}
+pub trait Timestamp: Time {
+
+}
 
 /// Callback handler for when a counter has overflowed past its maximum
 /// value and returned to 0.
@@ -385,7 +393,6 @@ pub trait Alarm<'a>: Time {
     /// value. If there was a previously installed callback this call
     /// replaces it.
     // fn set_alarm_client(&self, client: &'a AlarmDriver);
-
     /// Specify when the callback should be called and enable it. The
     /// callback will be enqueued when `Time::now() == reference + dt`. The
     /// callback itself may not run exactly at this time, due to delays.
@@ -488,7 +495,6 @@ pub trait Timer<'a>: Time {
 // The following "frequencies" are represented as variant-less enums. Because
 // they can never be constructed, it forces them to be used purely as
 // type-markers which are guaranteed to be elided at runtime.
-
 pub enum FrequencyVal {
     /// 48MHz `Frequency`
     Freq48MHz,
@@ -530,7 +536,6 @@ pub enum FrequencyVal {
 //         100_000_000
 //     }
 // }
-
 // /// 16MHz `Frequency`
 // #[derive(Debug)]
 // pub enum Freq16MHz {}
@@ -539,7 +544,6 @@ pub enum FrequencyVal {
 //         16_000_000
 //     }
 // }
-
 // /// 10MHz `Frequency`
 // pub enum Freq10MHz {}
 // impl Frequency for Freq10MHz {
@@ -547,7 +551,6 @@ pub enum FrequencyVal {
 //         10_000_000
 //     }
 // }
-
 // /// 1MHz `Frequency`
 // #[derive(Debug)]
 // pub enum Freq1MHz {}
@@ -567,7 +570,6 @@ pub enum FrequencyVal {
 //     }
 // }
 // }
-
 // /// 16KHz `Frequency`
 // #[derive(Debug)]
 // pub enum Freq16KHz {}
@@ -576,7 +578,6 @@ pub enum FrequencyVal {
 //         16_000
 //     }
 // }
-
 // /// 1KHz `Frequency`
 // #[derive(Debug)]
 // pub enum Freq1KHz {}
@@ -585,12 +586,13 @@ pub enum FrequencyVal {
 //         1_000
 //     }
 // }
-
 /// u32 `Ticks`
 #[derive(Debug)]
 pub struct Ticks32(u32);
 
-impl Copy for Ticks32 {}
+impl Copy for Ticks32 {
+
+}
 
 // Manually implementing the Clone trait
 impl Clone for Ticks32 {
@@ -605,9 +607,7 @@ impl Clone for Ticks32 {
 //         Self(self.0)
 //     }
 // }
-
 // impl Copy for Ticks32 {}
-
 impl From<u32> for Ticks32 {
     fn from(val: u32) -> Self {
         Ticks32(val)
@@ -622,16 +622,15 @@ impl Ticks for Ticks32 {
     closed spec fn spec_width() -> u32 {
         32
     }
+
     fn width() -> u32 {
         32
     }
 
-    fn into_usize(self) -> usize
-    {
+    fn into_usize(self) -> usize {
         let ret = self.0 as usize;
         assert(ret <= self.get_value() as usize);
         ret
-
     }
 
     fn into_u32(self) -> u32 {
@@ -700,7 +699,9 @@ impl PartialEq for Ticks32 {
     }
 }
 
-impl Eq for Ticks32 {}
+impl Eq for Ticks32 {
+
+}
 
 /// 24-bit `Ticks`
 #[derive(Clone, Copy, Debug)]
@@ -726,6 +727,7 @@ impl Ticks for Ticks24 {
     closed spec fn spec_width() -> u32 {
         24
     }
+
     fn width() -> u32 {
         24
     }
@@ -804,7 +806,9 @@ impl PartialEq for Ticks24 {
     }
 }
 
-impl Eq for Ticks24 {}
+impl Eq for Ticks24 {
+
+}
 
 /// 16-bit `Ticks`
 #[derive(Clone, Copy, Debug)]
@@ -836,6 +840,7 @@ impl Ticks for Ticks16 {
     closed spec fn spec_width() -> u32 {
         16
     }
+
     fn width() -> u32 {
         16
     }
@@ -911,7 +916,9 @@ impl PartialEq for Ticks16 {
     }
 }
 
-impl Eq for Ticks16 {}
+impl Eq for Ticks16 {
+
+}
 
 /// 64-bit `Ticks`
 #[derive(Clone, Copy, Debug)]
@@ -943,6 +950,7 @@ impl Ticks for Ticks64 {
     closed spec fn spec_width() -> u32 {
         64
     }
+
     fn width() -> u32 {
         64
     }
@@ -1014,9 +1022,11 @@ impl PartialEq for Ticks64 {
     }
 }
 
-impl Eq for Ticks64 {}
+impl Eq for Ticks64 {
+
 }
 
+} // verus!
 #[cfg(test)]
 mod tests {
     use super::*;
