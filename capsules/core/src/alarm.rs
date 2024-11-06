@@ -9,10 +9,13 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::time::{self, Alarm, Ticks};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
+use vstd::prelude::*;
 
 /// Syscall driver number.
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Alarm as usize;
+
+// verus! {
 
 #[derive(Copy, Clone, Debug)]
 struct Expiration<T: Ticks> {
@@ -34,13 +37,82 @@ impl<T: Ticks> Default for AlarmData<T> {
     }
 }
 
+// struct ExpirationTupleIterator<'a, A:Ticks> {
+//     pub array: &'a[Expiration<A>],
+//     pub cur: usize,
+// }
+
+// struct ExpirationTuple<A: Ticks, UD, F>(Expiration<A>, UD, F);
+// impl<I> ExpirationIterator<I> {
+//     fn new(iter: I) -> Self {
+//         ExpirationIterator {}
+//     }
+// }
+
+// struct ExpirationGhostIterator<A: Ticks> {
+//     remaining_items: Seq<(Expiration<A>)>, // Immutable sequence for ghost state
+//     cur_index: int, // Current index in the sequence, starting at 0
+// }
+
+// impl<'a, A: Ticks, UD, F> vstd::pervasive::ForLoopGhostIteratorNew for ExpirationTuple<A, UD, F>
+// {
+//     type GhostIter = ExpirationGhostIterator<A>;
+
+//     open spec fn ghost_iter(&self) -> ExpirationGhostIterator<A> {
+//         ExpirationGhostIterator {
+//     }
+// }
+
+// impl<'a, A: Ticks, UD, F> Iterator for ExpirationTuple< A, UD, F> {
+//     type Item = (Expiration<A>, UD, F);
+
+//     fn next(&mut self) -> Option<Self::Item> {
+// if self.cur < self.array.len() {
+//     let exp = self.array[self.cur].clone();
+//     self.cur += 1;
+//     Some((exp, self.user_data, self.handler))
+// } else {
+//     None
+// }
+// None
+// }
+// }
+
+// // Implement the required trait for your ExpirationTupleIterator
+// impl<'a, A: Ticks, UD, F> vstd::pervasive::ForLoopGhostIteratorNew for ExpirationTupleIterator<'a, A, UD, F> {
+//     type GhostIter = ExpirationGhostIterator<A>;
+
+//     open spec fn ghost_iter(&self) -> ExpirationGhostIterator<A> {
+//         ExpirationGhostIterator {
+//             remaining_items: self.array@, // Assuming `@` syntax works here for the ghost type
+//             cur_index: 0,
+//         }
+//     }
+// }
+
 pub struct AlarmDriver<'a, A: Alarm<'a>> {
     alarm: &'a A,
     app_alarms:
         Grant<AlarmData<A::Ticks>, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
 }
+use kernel::grant::AllowRoSize;
+use kernel::grant::AllowRwSize;
+use kernel::grant::UpcallSize;
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[verifier::accept_recursive_types(T)]
+#[verifier::accept_recursive_types(Upcalls)]
+#[verifier::accept_recursive_types(AllowROs)]
+#[verifier::accept_recursive_types(AllowRWs)]
+pub struct ExGrant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>(
+    Grant<T, Upcalls, AllowROs, AllowRWs>,
+);
 
 impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
+    // VERUS-TODO: To prevent this from being external we might have
+    // to model each of these types
+    #[verifier::external]
     pub const fn new(
         alarm: &'a A,
         grant: Grant<
@@ -82,65 +154,91 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     ) -> Result<Option<(Expiration<A::Ticks>, UD)>, (Expiration<A::Ticks>, UD, R)> {
         let mut earliest: Option<(Expiration<A::Ticks>, UD)> = None;
 
-        for (exp, ud, expired_handler) in expirations {
-            let Expiration {
-                reference: exp_ref,
-                dt: exp_dt,
-            } = exp;
-
-            // Pre-compute the absolute "end" time of this expiration (the
-            // point at which it should fire):
-            let exp_end = exp_ref.wrapping_add(exp_dt);
-
-            // If `now` is not within `[reference, reference + dt)`, this
-            // alarm has expired. Call the expired handler. If it returns
-            // false, stop here.
-            if !now.within_range(exp_ref, exp_end) {
-                let expired_handler_res = expired_handler(exp, &ud);
-                if let Some(retval) = expired_handler_res {
-                    return Err((exp, ud, retval));
-                }
-            }
-
-            // `exp` has not yet expired. At this point we can assume that
-            // `now` is within `[exp_ref, exp_end)`. Check whether it will
-            // expire earlier than the current `earliest`:
-            match &earliest {
-                None => {
-                    // Do not have an earliest expiration yet, set this
-                    // expriation as earliest:
-                    earliest = Some((exp, ud));
-                }
-
-                Some((
-                    Expiration {
-                        reference: earliest_ref,
-                        dt: earliest_dt,
-                    },
-                    _,
-                )) => {
-                    // As `now` is within `[ref, end)` for both timers, we
-                    // can check which end time is closer to `now`. We thus
-                    // first compute the end time for the current earliest
-                    // alarm as well ...
-                    let earliest_end = earliest_ref.wrapping_add(*earliest_dt);
-
-                    // ... and then perform a wrapping_sub against `now` for
-                    // both, checking which is smaller:
-                    let exp_remain = exp_end.wrapping_sub(now);
-                    let earliest_remain = earliest_end.wrapping_sub(now);
-                    if exp_remain < earliest_remain {
-                        // Our current exp expires earlier than earliest,
-                        // replace it:
-                        earliest = Some((exp, ud));
-                    }
-                }
-            }
-        }
-
-        // We have computed earliest by iterating over all alarms, but have not
-        // found one that has already expired. As such return `false`:
         Ok(earliest)
+        // Verus-TODO what is the difference between fold and for loop?
+        // This is just not supported
+        // expirations.fold(
+        //     Ok(None),
+        //     // |acc, (exp, ud, expired_handler)| match acc {
+        //         |acc, tuple| {
+        //             let exp = tuple.0;
+        //             let ud = tuple.1;
+        //             let expired_handler = tuple.2;
+        //         match acc {
+        //         Ok(earliest) => {
+        //             // Your existing logic here
+        //             let Expiration {
+        //                 reference: exp_ref,
+        //                 dt: exp_dt,
+        //             } = exp;
+
+        //             // Process the expiration and update earliest if needed
+        //             // Return Ok(new_earliest) or Err(...) as needed
+        //             Ok(earliest)
+        //         }
+        //         Err(e) => Err(e),
+        //     }
+        //     }
+        // )
+        // for (exp, ud, expired_handler) in expirations {
+        //     let Expiration {
+        //         reference: exp_ref,
+        //         dt: exp_dt,
+        //     } = exp;
+
+        //     // Pre-compute the absolute "end" time of this expiration (the
+        //     // point at which it should fire):
+        //     let exp_end = exp_ref.wrapping_add(exp_dt);
+
+        //     // If `now` is not within `[reference, reference + dt)`, this
+        //     // alarm has expired. Call the expired handler. If it returns
+        //     // false, stop here.
+        //     if !now.within_range(exp_ref, exp_end) {
+        //         let expired_handler_res = expired_handler(exp, &ud);
+        //         if let Some(retval) = expired_handler_res {
+        //             return Err((exp, ud, retval));
+        //         }
+        //     }
+
+        //     // `exp` has not yet expired. At this point we can assume that
+        //     // `now` is within `[exp_ref, exp_end)`. Check whether it will
+        //     // expire earlier than the current `earliest`:
+        //     match &earliest {
+        //         None => {
+        //             // Do not have an earliest expiration yet, set this
+        //             // expriation as earliest:
+        //             earliest = Some((exp, ud));
+        //         }
+
+        //         Some((
+        //             Expiration {
+        //                 reference: earliest_ref,
+        //                 dt: earliest_dt,
+        //             },
+        //             _,
+        //         )) => {
+        //             // As `now` is within `[ref, end)` for both timers, we
+        //             // can check which end time is closer to `now`. We thus
+        //             // first compute the end time for the current earliest
+        //             // alarm as well ...
+        //             let earliest_end = earliest_ref.wrapping_add(*earliest_dt);
+
+        //             // ... and then perform a wrapping_sub against `now` for
+        //             // both, checking which is smaller:
+        //             let exp_remain = exp_end.wrapping_sub(now);
+        //             let earliest_remain = earliest_end.wrapping_sub(now);
+        //             if exp_remain < earliest_remain {
+        //                 // Our current exp expires earlier than earliest,
+        //                 // replace it:
+        //                 earliest = Some((exp, ud));
+        //             }
+        //         }
+        //     }
+        // }
+
+        // // We have computed earliest by iterating over all alarms, but have not
+        // // found one that has already expired. As such return `false`:
+        // Ok(earliest)
     }
 
     /// Re-arm the timer. This must be called in response to the underlying
@@ -150,6 +248,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     /// - invoke upcalls for all expired app alarms, resetting them afterwards,
     /// - re-arming the alarm for the next earliest [`Expiration`], or
     /// - disarming the alarm if no unexpired [`Expiration`] is found.
+    #[verifier::external_body]
     fn process_rearm_or_callback(&self) {
         // Ask the clock about a current reference once. This can incur a
         // volatile read, and this may not be optimized if done in a loop:
@@ -223,13 +322,15 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         }
     }
 
+    // #[verifier::external_body]
     fn rearm_u32_left_justified_expiration(
         now: A::Ticks,
         reference_u32: Option<u32>,
         dt_u32: u32,
         expiration: &mut Option<Expiration<A::Ticks>>,
     ) -> u32 {
-        let reference_unshifted = reference_u32.map(|ref_u32| ref_u32 >> A::Ticks::u32_padding());
+        let reference_unshifted = reference_u32;
+        // let reference_unshifted = reference_u32.map(|ref_u32| ref_u32 >> A::Ticks::u32_padding());
 
         // If the underlying timer is less than 32-bit wide, userspace is able
         // to provide a finer `reference` and `dt` resolution than we can
@@ -306,6 +407,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                     // 3. adding back the userspace-provided reference.
 
                     // Build 1 << 32:
+                    // Verus-TODO: This is not supported, need to model or verify from
                     let bit33 = A::Ticks::from(0xffffffff).wrapping_add(A::Ticks::from(0x1));
 
                     // Perform step 1, subtracting 1 << 32:
@@ -379,6 +481,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
             .into_u32_left_justified()
     }
 }
+// }
 
 impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
     /// Setup and read the alarm.
