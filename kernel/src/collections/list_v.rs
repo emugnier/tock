@@ -238,7 +238,6 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
                     Option::None => old(self).index@ + 1 == ghost_state@.cells.len(),
                 },
         {
-            //assume(false);
             let cur = self.next(ghost_state);
             if cur.is_none() {
                 proof {
@@ -351,6 +350,12 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
         ensures
             old(ghost_state)@.cells.len() + 1 == ghost_state@.cells.len(),
             self.well_formed_list(ghost_state),
+            ghost_state@.points_to_map[0].value().unwrap() == node,
+            forall|i: nat|
+                0 <= i < (old(ghost_state)@.cells.len() - 1) as nat ==> #[trigger] old(
+                    ghost_state,
+                )@.points_to_map[i].value().unwrap() == ghost_state@.points_to_map[i
+                    + 1].value().unwrap(),
     {
         proof {
             assert(ghost_state@.points_to_map.dom().contains(0));
@@ -373,7 +378,6 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
             );
             ghost_state.borrow_mut().points_to_map.tracked_insert(0, head_points_to);
             ghost_state.borrow_mut().points_to_map.tracked_insert(1, next_ptr);
-            //assert(forall|i: nat| 1 <= i < old(ghost_state)@.cells.len() && old(ghost_state)@.points_to_map.dom().contains(i) && old(ghost_state)@.points_to_map[i].is_init() && old(ghost_state)@.points_to_map[i].id() == old(ghost_state)@.cells[i as int].id() ==> #[trigger] well_formed_node(ghost_state, (i + 1) as nat));
             assert forall|i: nat| 2 <= i < ghost_state@.cells.len() implies well_formed_node(
                 ghost_state,
                 i,
@@ -385,18 +389,6 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
                 assert(old(ghost_state)@.points_to_map[(i - 1) as nat]
                     == ghost_state@.points_to_map[i]);
             }
-            /*assert(match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
-                    Option::Some(_) => false,
-                    Option::None => true,
-                }) by {
-                    assert(old(ghost_state)@.points_to_map[(old(ghost_state)@.cells.len() - 1) as nat].value() == ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value());
-                };*/
-            /*assert(match head_points_to.value() {
-                    Option::Some(_) => true,
-                    Option::None => false,
-                });
-                assert(next_ptr.value() == old_head_value);*/
-            //assume(forall|i: nat| 2 <= i < ghost_state@.cells.len() ==> well_formed_node(ghost_state, i));
         }
     }
 
@@ -432,6 +424,13 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
         ensures
             old(ghost_state)@.cells.len() + 1 == ghost_state@.cells.len(),
             self.well_formed_list(ghost_state),
+            ghost_state@.points_to_map[(ghost_state@.cells.len() - 2) as nat].value().unwrap()
+                == node,
+            forall|i: nat|
+                0 <= i < (old(ghost_state)@.cells.len() - 1) as nat ==> #[trigger] old(
+                    ghost_state,
+                )@.points_to_map[i].value().unwrap()
+                    == ghost_state@.points_to_map[i].value().unwrap(),
     {
         let tracked mut next_ptr = next_points_to.get();
         let next_node = node.next(Tracked(&next_ptr));
@@ -503,7 +502,11 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
             } else {
                 old(ghost_state)@.cells.len() - 1 == ghost_state@.cells.len() && old(
                     ghost_state,
-                )@.points_to_map[0].value() == res
+                )@.points_to_map[0].value() == res && forall|i: nat|
+                    1 <= i < (old(ghost_state)@.cells.len() - 1) as nat ==> #[trigger] old(
+                        ghost_state,
+                    )@.points_to_map[i].value().unwrap() == ghost_state@.points_to_map[(i
+                        - 1) as nat].value().unwrap()
             },
     {
         proof {
