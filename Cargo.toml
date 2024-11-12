@@ -98,6 +98,7 @@ members = [
     "libraries/tock-cells",
     "libraries/tock-register-interface",
     "libraries/tickv",
+    "verus/tools/vargo",
 ]
 exclude = ["tools/"]
 resolver = "2"
