@@ -57,6 +57,29 @@ pub closed spec fn well_formed_node<'a, T: 'a + ?Sized + ListNodeV<'a, T>>(
 }
 
 impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
+    pub closed spec fn well_formed_list_iterator(
+        &self,
+        ghost_state: &Tracked<GhostState<'a, T>>,
+    ) -> bool {
+        &&& ghost_state@.cells.len() > self.index@
+        &&& forall|i: nat|
+            self.index@ <= i < ghost_state@.cells.len()
+                ==> #[trigger] ghost_state@.points_to_map.dom().contains(i)
+                && ghost_state@.points_to_map[i].is_init() && ghost_state@.points_to_map[i].id()
+                == ghost_state@.cells[i as int].id()
+        &&& forall|i: nat|
+            self.index@ <= i < (ghost_state@.cells.len() - 1) as nat
+                ==> match #[trigger] ghost_state@.points_to_map[i].value() {
+                Option::Some(_) => true,
+                Option::None => false,
+            }
+        &&& match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
+            Option::Some(_) => false,
+            Option::None => true,
+        }
+        &&& self.cur == ghost_state@.points_to_map[self.index@].value()
+    }
+
     pub fn new(l: &'a ListV<'a, T>, ghost_state: &Tracked<GhostState<'a, T>>) -> (res:
         ListIteratorV<'a, T>)
         requires
@@ -91,42 +114,10 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
 
     pub fn next(&mut self, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: Option<&'a T>)
         requires
-            ghost_state@.cells.len() > old(self).index@,
-            forall|i: nat|
-                old(self).index@ <= i < ghost_state@.cells.len()
-                    ==> #[trigger] ghost_state@.points_to_map.dom().contains(i)
-                    && ghost_state@.points_to_map[i].is_init() && ghost_state@.points_to_map[i].id()
-                    == ghost_state@.cells[i as int].id(),
-            forall|i: nat|
-                old(self).index@ <= i < (ghost_state@.cells.len() - 1) as nat
-                    ==> match #[trigger] ghost_state@.points_to_map[i].value() {
-                    Option::Some(_) => true,
-                    Option::None => false,
-                },
-            match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
-                Option::Some(_) => false,
-                Option::None => true,
-            },
-            old(self).cur == ghost_state@.points_to_map[old(self).index@].value(),
+            old(self).well_formed_list_iterator(ghost_state),
         ensures
-            ghost_state@.cells.len() > self.index@,
-            forall|i: nat|
-                self.index@ <= i < ghost_state@.cells.len()
-                    ==> #[trigger] ghost_state@.points_to_map.dom().contains(i)
-                    && ghost_state@.points_to_map[i].is_init() && ghost_state@.points_to_map[i].id()
-                    == ghost_state@.cells[i as int].id(),
-            forall|i: nat|
-                self.index@ <= i < (ghost_state@.cells.len() - 1) as nat
-                    ==> match #[trigger] ghost_state@.points_to_map[i].value() {
-                    Option::Some(_) => true,
-                    Option::None => false,
-                },
-            match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
-                Option::Some(_) => false,
-                Option::None => true,
-            },
+            self.well_formed_list_iterator(ghost_state),
             res == ghost_state@.points_to_map[old(self).index@].value(),
-            self.cur == ghost_state@.points_to_map[self.index@].value(),
             match res {
                 Option::Some(_) => old(self).index@ + 1 < ghost_state@.cells.len() && self.index@
                     + 1 <= ghost_state@.cells.len() && self.index@ == old(self).index@ + 1,
@@ -174,23 +165,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
 
     pub fn last(&mut self, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: Option<&'a T>)
         requires
-            ghost_state@.cells.len() > old(self).index@,
-            forall|i: nat|
-                old(self).index@ <= i < ghost_state@.cells.len()
-                    ==> #[trigger] ghost_state@.points_to_map.dom().contains(i)
-                    && ghost_state@.points_to_map[i].is_init() && ghost_state@.points_to_map[i].id()
-                    == ghost_state@.cells[i as int].id(),
-            forall|i: nat|
-                old(self).index@ <= i < (ghost_state@.cells.len() - 1) as nat
-                    ==> match #[trigger] ghost_state@.points_to_map[i].value() {
-                    Option::Some(_) => true,
-                    Option::None => false,
-                },
-            match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
-                Option::Some(_) => false,
-                Option::None => true,
-            },
-            old(self).cur == ghost_state@.points_to_map[old(self).index@].value(),
+            old(self).well_formed_list_iterator(ghost_state),
         ensures
             ghost_state@.cells.len() == self.index@ + 1,
             self.cur == ghost_state@.points_to_map[self.index@].value(),
@@ -205,23 +180,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
         assert(old(self).index@ == self.index@);
         loop
             invariant_except_break
-                ghost_state@.cells.len() > self.index@,
-                forall|i: nat|
-                    self.index@ <= i < ghost_state@.cells.len()
-                        ==> #[trigger] ghost_state@.points_to_map.dom().contains(i)
-                        && ghost_state@.points_to_map[i].is_init()
-                        && ghost_state@.points_to_map[i].id() == ghost_state@.cells[i as int].id(),
-                forall|i: nat|
-                    self.index@ <= i < (ghost_state@.cells.len() - 1) as nat
-                        ==> match #[trigger] ghost_state@.points_to_map[i].value() {
-                        Option::Some(_) => true,
-                        Option::None => false,
-                    },
-                match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
-                    Option::Some(_) => false,
-                    Option::None => true,
-                },
-                self.cur == ghost_state@.points_to_map[self.index@].value(),
+                self.well_formed_list_iterator(ghost_state),
                 match last {
                     Option::Some(_) => ghost_state@.points_to_map.dom().contains(
                         (self.index@ - 1) as nat,
@@ -307,10 +266,8 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
     pub fn head(&self, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: Option<&'a T>)
         requires
             ghost_state@.cells.len() >= 1,
-            ghost_state@.points_to_map.dom().contains(0),
+            well_formed_node(ghost_state, 0),
             ghost_state@.cells[0].id() == self.head.0.id(),
-            ghost_state@.points_to_map[0].is_init(),
-            ghost_state@.points_to_map[0].id() == self.head.0.id(),
         ensures
             ghost_state@.points_to_map[0].value() == res,
     {
