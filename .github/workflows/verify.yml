@@ -37,11 +37,11 @@ jobs:
       with:
         path: ${{ github.workspace }}/verus
         key: ${{ runner.os }}-verus-${{ hashFiles('verus/.git/refs/heads/main') }}
-    - name: Verify
-      run:  make -f Verifile
 
     - name: Build Verus
       run: ./tools/ci-build-verus.sh
+    - name: Verify
+      run:  make -f Verifile
     - name: Get Verus FMT
       run: cargo install verusfmt
     - name: Format
