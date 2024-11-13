@@ -9,7 +9,7 @@ use vstd::cell::*;
 pub struct ListLinkV<'a, T: 'a + ?Sized>(pub PCell<Option<&'a T>>);
 
 impl<'a, T: ?Sized> ListLinkV<'a, T> {
-    pub const fn empty() -> (res: (ListLinkV<'a, T>, Tracked<PointsTo<Option<&'a T>>>))
+    pub const fn empty() -> (res: (Self, Tracked<PointsTo<Option<&'a T>>>))
         ensures
             res.0.0.id() == res.1@.id(),
             res.1@.is_init(),
@@ -57,7 +57,7 @@ pub closed spec fn well_formed_node<'a, T: 'a + ?Sized + ListNodeV<'a, T>>(
 }
 
 impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
-    pub closed spec fn well_formed_list_iterator(
+    pub closed spec fn valid_list_iterator(
         &self,
         ghost_state: &Tracked<GhostState<'a, T>>,
     ) -> bool {
@@ -80,8 +80,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
         &&& self.cur == ghost_state@.points_to_map[self.index@].value()
     }
 
-    pub fn new(l: &'a ListV<'a, T>, ghost_state: &Tracked<GhostState<'a, T>>) -> (res:
-        ListIteratorV<'a, T>)
+    pub fn new(l: &'a ListV<'a, T>, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: Self)
         requires
             ghost_state@.cells.len() >= 1,
             forall|i: nat|
@@ -101,8 +100,8 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
             },
             ghost_state@.cells[0].id() == l.head.0.id(),
         ensures
-            res.cur == ghost_state@.points_to_map[0].value(),
             res.index@ == 0,
+            res.valid_list_iterator(ghost_state),
     {
         proof {
             assert(ghost_state@.points_to_map.dom().contains(0));
@@ -114,9 +113,9 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
 
     pub fn next(&mut self, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: Option<&'a T>)
         requires
-            old(self).well_formed_list_iterator(ghost_state),
+            old(self).valid_list_iterator(ghost_state),
         ensures
-            self.well_formed_list_iterator(ghost_state),
+            self.valid_list_iterator(ghost_state),
             res == ghost_state@.points_to_map[old(self).index@].value(),
             match res {
                 Option::Some(_) => old(self).index@ + 1 < ghost_state@.cells.len() && self.index@
@@ -165,7 +164,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
 
     pub fn last(&mut self, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: Option<&'a T>)
         requires
-            old(self).well_formed_list_iterator(ghost_state),
+            old(self).valid_list_iterator(ghost_state),
         ensures
             ghost_state@.cells.len() == self.index@ + 1,
             self.cur == ghost_state@.points_to_map[self.index@].value(),
@@ -180,7 +179,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
         assert(old(self).index@ == self.index@);
         loop
             invariant_except_break
-                self.well_formed_list_iterator(ghost_state),
+                self.valid_list_iterator(ghost_state),
                 match last {
                     Option::Some(_) => ghost_state@.points_to_map.dom().contains(
                         (self.index@ - 1) as nat,
@@ -226,14 +225,21 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListIteratorV<'a, T> {
 
 impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
     pub closed spec fn well_formed_list(&self, ghost_state: &Tracked<GhostState<'a, T>>) -> bool {
+        // list length = cells length - 1 (the last cell contains None)
         &&& ghost_state@.cells.len() >= 1
-        &&& forall|i: nat| 0 <= i < ghost_state@.cells.len() ==> well_formed_node(ghost_state, i)
+        &&& forall|i: nat|
+            0 <= i < ghost_state@.cells.len() ==> well_formed_node(
+                ghost_state,
+                i,
+            )
+        // every cell except the last one should not be None
         &&& forall|i: nat|
             0 <= i < (ghost_state@.cells.len() - 1) as nat
                 ==> match #[trigger] ghost_state@.points_to_map[i].value() {
                 Option::Some(_) => true,
                 Option::None => false,
             }
+            // the last cell contains None
         &&& match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
             Option::Some(_) => false,
             Option::None => true,
@@ -241,8 +247,10 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
         &&& ghost_state@.cells[0].id() == self.head.0.id()
     }
 
-    pub const fn new() -> (res: (ListV<'a, T>, Tracked<GhostState<'a, T>>))
+    pub const fn new() -> (res: (Self, Tracked<GhostState<'a, T>>))
         ensures
+    // list length = cells length - 1 (last cell contains None)
+
             res.1@.cells.len() == 1,
             well_formed_node(&res.1, 0),
             res.0.well_formed_list(&res.1),
@@ -265,6 +273,8 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
 
     pub fn head(&self, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: Option<&'a T>)
         requires
+    // list length = cells length - 1 (last cell contains None)
+
             ghost_state@.cells.len() >= 1,
             well_formed_node(ghost_state, 0),
             ghost_state@.cells[0].id() == self.head.0.id(),
@@ -282,6 +292,9 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
         ghost_state: &mut Tracked<GhostState<'a, T>>,
     )
         requires
+    // VERUS-TODO manually inlined due to errors (`a mutable reference is expected here`) when using `self.well_formed_list(old(ghost_state))`.
+    // list length = cells length - 1 (last cell contains None)
+
             old(ghost_state)@.cells.len() >= 1,
             forall|i: nat|
                 0 <= i < old(ghost_state)@.cells.len() ==> #[trigger] old(
@@ -290,6 +303,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
                     && old(ghost_state)@.points_to_map[i].id() == old(
                     ghost_state,
                 )@.cells[i as int].id(),
+            // every cell except the last one should not be None
             forall|i: nat|
                 0 <= i < (old(ghost_state)@.cells.len() - 1) as nat ==> match #[trigger] old(
                     ghost_state,
@@ -297,6 +311,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
                     Option::Some(_) => true,
                     Option::None => false,
                 },
+            // the last cell contains None
             match old(ghost_state)@.points_to_map[(old(ghost_state)@.cells.len()
                 - 1) as nat].value() {
                 Option::Some(_) => false,
@@ -356,6 +371,9 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
         ghost_state: &mut Tracked<GhostState<'a, T>>,
     )
         requires
+    // VERUS-TODO manually inlined due to errors (`a mutable reference is expected here`) when using `self.well_formed_list(old(ghost_state))`.
+    // list length = cells length - 1 (last cell contains None)
+
             old(ghost_state)@.cells.len() >= 1,
             forall|i: nat|
                 0 <= i < old(ghost_state)@.cells.len() ==> #[trigger] old(
@@ -364,6 +382,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
                     && old(ghost_state)@.points_to_map[i].id() == old(
                     ghost_state,
                 )@.cells[i as int].id(),
+            // every cell except the last one should not be None
             forall|i: nat|
                 0 <= i < (old(ghost_state)@.cells.len() - 1) as nat ==> match #[trigger] old(
                     ghost_state,
@@ -371,6 +390,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
                     Option::Some(_) => true,
                     Option::None => false,
                 },
+            // the last cell contains None
             match old(ghost_state)@.points_to_map[(old(ghost_state)@.cells.len()
                 - 1) as nat].value() {
                 Option::Some(_) => false,
@@ -431,6 +451,9 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
 
     pub fn pop_head(&self, ghost_state: &mut Tracked<GhostState<'a, T>>) -> (res: Option<&'a T>)
         requires
+    // VERUS-TODO manually inlined due to errors (`a mutable reference is expected here`) when using `self.well_formed_list(old(ghost_state))`.
+    // list length = cells length - 1 (last cell contains None)
+
             old(ghost_state)@.cells.len() >= 1,
             forall|i: nat|
                 0 <= i < old(ghost_state)@.cells.len() ==> #[trigger] old(
@@ -439,6 +462,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
                     && old(ghost_state)@.points_to_map[i].id() == old(
                     ghost_state,
                 )@.cells[i as int].id(),
+            // every cell except the last one should not be None
             forall|i: nat|
                 0 <= i < (old(ghost_state)@.cells.len() - 1) as nat ==> match #[trigger] old(
                     ghost_state,
@@ -446,6 +470,7 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
                     Option::Some(_) => true,
                     Option::None => false,
                 },
+            // the last cell contains None
             match old(ghost_state)@.points_to_map[(old(ghost_state)@.cells.len()
                 - 1) as nat].value() {
                 Option::Some(_) => false,
@@ -529,18 +554,22 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
 
     pub fn iter(&'a self, ghost_state: &Tracked<GhostState<'a, T>>) -> (res: ListIteratorV<'a, T>)
         requires
+    // list length = cells length - 1 (last cell contains None)
+
             ghost_state@.cells.len() >= 1,
             forall|i: nat|
                 0 <= i < ghost_state@.cells.len()
                     ==> #[trigger] ghost_state@.points_to_map.dom().contains(i)
                     && ghost_state@.points_to_map[i].is_init() && ghost_state@.points_to_map[i].id()
                     == ghost_state@.cells[i as int].id(),
+            // every cell except the last one should not be None
             forall|i: nat|
                 0 <= i < (ghost_state@.cells.len() - 1) as nat
                     ==> match #[trigger] ghost_state@.points_to_map[i].value() {
                     Option::Some(_) => true,
                     Option::None => false,
                 },
+            // the last cell contains None
             match ghost_state@.points_to_map[(ghost_state@.cells.len() - 1) as nat].value() {
                 Option::Some(_) => false,
                 Option::None => true,
