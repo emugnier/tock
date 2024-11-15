@@ -1,5 +1,4 @@
 # Variables
-VERUS_DIR = ~/verus/source/target-verus/release
 DEPS_DIR = target/debug
 KERNEL_VIR = kernel.vir
 
