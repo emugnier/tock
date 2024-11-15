@@ -40,8 +40,6 @@ jobs:
 
     - name: Build Verus
       run: ./tools/ci-build-verus.sh
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
     - name: Get Verus FMT
       run: cargo install verusfmt
     - name: Remove workspace section from Verus dependencies
