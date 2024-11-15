@@ -99,7 +99,9 @@ members = [
     "libraries/tock-register-interface",
     "libraries/tickv",
 ]
-exclude = ["tools/"]
+exclude = ["tools/",
+"verus/tools/vargo",
+]
 resolver = "2"
 
 [workspace.package]

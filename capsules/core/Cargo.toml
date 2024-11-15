@@ -12,7 +12,7 @@ edition.workspace = true
 kernel = { path = "../../kernel" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 tickv = { path = "../../libraries/tickv" }
-vstd = { path = "../../../verus/source/vstd" }
+vstd = { path = "../../verus/source/vstd" }
 
 [lints]
 workspace = true
