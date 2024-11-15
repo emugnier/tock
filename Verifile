@@ -12,7 +12,7 @@ ENUM_PRIMITIVE = $(DEPS_DIR)/libenum_primitive.rlib
 # File using verus
 RS_FILES = capsules/core/src/virtualizers/virtual_timer.rs kernel/src/hil/time.rs capsules/core/src/virtualizers/virtual_alarm.rs kernel/src/collections/list.rs
 
-all: compile_all verify_all format_check
+all: compile_all verify_all
 
 format_check:
 	@for f in $(RS_FILES); do \

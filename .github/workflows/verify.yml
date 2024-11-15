@@ -42,10 +42,15 @@ jobs:
       run: ./tools/ci-build-verus.sh
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
-    - name: Verify
-      run:  make -f Verifile
     - name: Get Verus FMT
       run: cargo install verusfmt
+    - name: Remove workspace section from Verus dependencies
+      run: |
+        sed -i '/^\[workspace\]/,/^$/d' ${{ github.workspace }}/verus/dependencies/prettyplease/Cargo.toml
+        echo "Modified Cargo.toml:"
+        cat ${{ github.workspace }}/verus/dependencies/prettyplease/Cargo.toml
+    - name: Verify
+      run:  make -f Verifile
     - name: Format
       run:  make -f Verifile format_check
 
