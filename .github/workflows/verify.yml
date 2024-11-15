@@ -40,6 +40,8 @@ jobs:
 
     - name: Build Verus
       run: ./tools/ci-build-verus.sh
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Verify
       run:  make -f Verifile
     - name: Get Verus FMT
