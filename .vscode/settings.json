@@ -6,4 +6,6 @@
         "RUSTUP_TOOLCHAIN": "1.76.0"
     },
     "rust-analyzer.check.allTargets": false,
+    "rust-analyzer.checkOnSave": false,
+    "rust-analyzer.server.path": "/workspaces/tock/verus-analyzer/dist/verus-analyzer-x86_64-unknown-linux-gnu",
 }

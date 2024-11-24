@@ -1,5 +1,3 @@
-#![feature(const_refs_to_cell)]
-
 use vstd::prelude::*;
 
 verus! {
@@ -256,13 +254,12 @@ impl<'a, T: ?Sized + ListNodeV<'a, T>> ListV<'a, T> {
             res.0.well_formed_list(&res.1),
     {
         let (list_link, Tracked(points_to)) = ListLinkV::<T>::empty();
-        let cell = &list_link.0;
         let mut ghost_state = Tracked(
             GhostState { cells: Seq::empty(), points_to_map: Map::tracked_empty() },
         );
 
         proof {
-            ghost_state.borrow_mut().cells = ghost_state@.cells.push(cell);
+            ghost_state.borrow_mut().cells = ghost_state@.cells.push(&list_link.0);
             ghost_state.borrow_mut().points_to_map.tracked_insert(0, points_to);
         }
 
