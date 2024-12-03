@@ -27,3 +27,5 @@ pub mod rng;
 pub mod spi_controller;
 pub mod spi_peripheral;
 pub mod virtualizers;
+pub mod list_v;
+pub mod alarm_v;
