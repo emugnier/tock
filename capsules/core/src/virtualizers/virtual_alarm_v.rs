@@ -85,62 +85,12 @@ impl<'a, A: Alarm<'a>> ListNodeV<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm
 
 pub tracked struct VirtualMuxAlarmState<'a, A: Alarm<'a>> {
     phantom: core::marker::PhantomData<A>,
+    // not sure if we should put the alarm_state as part of the mux state
+    pub mux_alarm_state: Tracked<MuxAlarmState<'a, A>>,
     pub tracked dt_reference_pt: PointsTo<TickDtReference<<VirtualMuxAlarm<'a, A> as kernel::hil::time::Time>::Ticks>>,
     pub tracked armed_pt: PointsTo<bool>,
 }
 
-// #[verifier::external_fn_specification]
-// pub fn ExListIterator<'a, T: ?Sized + ListNode<'a, T>>(list: &List<'a, T>) -> kernel::collections::list::ListIterator<'a,T> {
-//     list.iter()
-// }
-// pub fn iter(&self) -> ListIterator<'a, T> {
-//     ListIterator {
-//         cur: self.head.0.get(),
-//     }
-// }
-//     fn from(value: T) -> Self;
-// #[verifier::external_fn_specification]
-// fn from_requires_ensures(value: u32) -> Ticks
-//     {
-//         Ticks(value)
-//     }
-// #[verifier ::external_fn_specification]
-// fn from_requires_ensures(value: u32) -> Ticks
-// {
-//     time::Ticks32::from(value)
-// }
-// #[verifier::external_trait_specification]
-// pub trait ExFrom<T>: Sized{
-//     type ExternalTraitSpecificationFor: core::convert::From<T>;
-//     // fn from(value: T) -> core::convert::From<T>::from;
-// }
-// #[verifier::external_fn_specification]
-// pub fn ex_from_ticks(val: u32) -> (ticks: Ticks)
-// {
-//     Ticks::from(val)
-// }
-// #[verifier::external_fn_specification]
-// pub fn ex_from_impl<A: Ticks>(value: u32) -> (r: time::Ticks32)
-// {
-//     Ticks32::from(value)
-// }
-// #[verifier::external_fn_specification]
-// pub fn from_requires_ensures<T>(a: T) -> T
-// {
-//     core::convert::From::from(a)
-// }
-// impl ExFrom<u32> for time::Ticks24 {
-//     type ExternalTraitSpecificationFor = Self;
-//     #[verifier::external_fn_specification]
-//     fn from(value: u32) -> Self {
-//         time::Ticks24(value)
-//     }
-// }
-// impl From<u32> for Ticks32 {
-//     fn from(val: u32) -> Self {
-//         Ticks32(val)
-//     }
-// }
 #[verifier::external_type_specification]
 #[verifier::external_body]
 #[verifier::reject_recursive_types(T)]
@@ -168,7 +118,7 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
     }
 
     /// After calling new, always call setup()
-    pub fn new(mux_alarm: &'a MuxAlarm<'a, A>) -> (res: (
+    pub fn new(mux_alarm: &'a MuxAlarm<'a, A>, mux_alarm_state: &Tracked<MuxAlarmState<'a, A>>) -> (res: (
         VirtualMuxAlarm<'a, A>,
         Tracked<VirtualMuxAlarmState<'a, A>>,
         Tracked<PointsTo<Option<&'a VirtualMuxAlarm<'a, A>>>>,
@@ -198,7 +148,7 @@ impl<'a, A: Alarm<'a>> VirtualMuxAlarm<'a, A> {
                 next,
                 client: OptionalCell::empty(),
             },
-            Tracked(VirtualMuxAlarmState { phantom, dt_reference_pt, armed_pt }),
+            Tracked(VirtualMuxAlarmState { phantom, mux_alarm_state: *mux_alarm_state, dt_reference_pt, armed_pt }),
             tracked_next_pt,
         )
     }
@@ -242,7 +192,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
 
         // let enabled = self.mux.enabled.get() - 1;
         // VERUS-TODO: Fix the above overflow in the above line and replace it
-        let enabled = self.mux.enabled.borrow() - 1;
+        let enabled = self.mux.enabled.borrow(Tracked(&state@.mux_alarm_state@.enabled_pt)) - 1;
         self.mux.enabled.set(enabled);
 
         // If there are not more enabled alarms, disable the underlying alarm
