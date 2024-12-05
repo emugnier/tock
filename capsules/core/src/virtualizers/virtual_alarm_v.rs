@@ -22,6 +22,8 @@ verus! {
 pub trait Alarm<'a>: Time {
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
     fn get_alarm(&self) -> Self::Ticks;
+    // Should the state be a trait too? Like we cannot have the
+    // same state for a muxAlarm and a virtualAlarm
     fn disarm(&self, state: &mut Tracked<VirtualMuxAlarmState<'a, Self>>) -> Result<(), ErrorCode> where Self: core::marker::Sized;
     fn is_armed(&self, state: &Tracked<VirtualMuxAlarmState<'a, Self>>) -> bool where Self: core::marker::Sized;
     fn minimum_dt(&self) -> Self::Ticks;
@@ -193,12 +195,12 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // let enabled = self.mux.enabled.get() - 1;
         // VERUS-TODO: Fix the above overflow in the above line and replace it
         let enabled = self.mux.enabled.borrow(Tracked(&state@.mux_alarm_state@.enabled_pt)) - 1;
-        self.mux.enabled.set(enabled);
+        self.mux.enabled.replace(Tracked(&mut state@.mux_alarm_state@.enabled_pt), enabled);
 
         // If there are not more enabled alarms, disable the underlying alarm
         // completely.
         if enabled == 0 {
-            let _ = self.mux.alarm.disarm();
+            let _ = self.mux.alarm.disarm(&mut state@.mux_alarm_state);
         }
         Ok(())
     }
