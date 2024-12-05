@@ -14,7 +14,7 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 use crate::alarm_v::AlarmDriver;
-use crate::list_v::{ListIteratorV, ListLinkV, ListNodeV, ListV, GhostState};
+use crate::list_v::{GhostState, ListIteratorV, ListLinkV, ListNodeV, ListV};
 
 verus! {
 
@@ -235,14 +235,14 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
     self.valid_state(&state),
     self.dt_reference.id() == state@.dt_reference_pt.id(),
     {
-        if !self.armed.get() {
+        if !self.armed.borrow(Tracked(&state@.armed_pt)) {
             return Ok(());
         }
-        self.armed.set(false);
+        self.armed.replace(Tracked(&mut state@.armed_pt), false);
 
         // let enabled = self.mux.enabled.get() - 1;
         // VERUS-TODO: Fix the above overflow in the above line and replace it
-        let enabled = self.mux.enabled.get();
+        let enabled = self.mux.enabled.borrow() - 1;
         self.mux.enabled.set(enabled);
 
         // If there are not more enabled alarms, disable the underlying alarm
@@ -278,7 +278,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         } else {
             TickDtReference { reference, dt, extended: false }
         };
-        self.dt_reference.set(dt_reference);
+        self.dt_reference.replace(dt_reference);
         // Ensure local variable has correct value when used below
         let dt = dt_reference.dt;
 
@@ -527,7 +527,7 @@ impl<'a, A: Alarm<'a>> AlarmClient<'a, A> for MuxAlarm<'a, A> {
 
         // Set the alarm.
         if let Some(valrm) = next {
-            let dt_reference = valrm.dt_reference.get();
+            let dt_reference = valrm.dt_reference.borrow();
             self.set_alarm(dt_reference.reference, dt_reference.dt);
         } else {
             self.disarm();
