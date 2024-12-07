@@ -18,14 +18,16 @@ use crate::list_v::{GhostState, ListIteratorV, ListLinkV, ListNodeV, ListV};
 
 verus! {
 
+pub trait AlarmState {}
 /// A trait that defines the behavior of an alarm.
 pub trait Alarm<'a>: Time {
+    type State: AlarmState;
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks);
     fn get_alarm(&self) -> Self::Ticks;
     // Should the state be a trait too? Like we cannot have the
     // same state for a muxAlarm and a virtualAlarm
-    fn disarm(&self, state: &mut Tracked<VirtualMuxAlarmState<'a, Self>>) -> Result<(), ErrorCode> where Self: core::marker::Sized;
-    fn is_armed(&self, state: &Tracked<VirtualMuxAlarmState<'a, Self>>) -> bool where Self: core::marker::Sized;
+    fn disarm(&self, state: &mut Tracked<Self::State>) -> Result<(), ErrorCode> where Self: core::marker::Sized;
+    fn is_armed(&self, state: &Tracked<Self::State>) -> bool where Self: core::marker::Sized;
     fn minimum_dt(&self) -> Self::Ticks;
 }
 
@@ -92,6 +94,8 @@ pub tracked struct VirtualMuxAlarmState<'a, A: Alarm<'a>> {
     pub tracked dt_reference_pt: PointsTo<TickDtReference<<VirtualMuxAlarm<'a, A> as kernel::hil::time::Time>::Ticks>>,
     pub tracked armed_pt: PointsTo<bool>,
 }
+
+impl<'a, A:Alarm<'a>> AlarmState for VirtualMuxAlarmState<'a, A> {}
 
 #[verifier::external_type_specification]
 #[verifier::external_body]
@@ -182,6 +186,8 @@ impl<'a, A: Alarm<'a>> Time for VirtualMuxAlarm<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
+    type State = VirtualMuxAlarmState<'a, VirtualMuxAlarm<'a, A>>;
+
     fn disarm(&self, state: &mut Tracked<VirtualMuxAlarmState<'a, VirtualMuxAlarm<'a, A>>>) -> Result<(), ErrorCode>
     ensures
     self.valid_state(&state),
@@ -200,7 +206,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
         // If there are not more enabled alarms, disable the underlying alarm
         // completely.
         if enabled == 0 {
-            let _ = self.mux.alarm.disarm(&mut state@.mux_alarm_state);
+            let _ = self.mux.alarm.disarm();
         }
         Ok(())
     }
