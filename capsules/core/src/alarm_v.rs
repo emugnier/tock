@@ -645,7 +645,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
 }
 
 impl<'a, A: Alarm<'a>> AlarmClient<'a, A> for AlarmDriver<'a, A> {
-    fn alarm(&self, _state: &Tracked<MuxAlarmState<'a, A>>) {
+    fn alarm(&self, _state: &mut Tracked<MuxAlarmState<'a, A>>) {
         self.process_rearm_or_callback();
     }
 }
