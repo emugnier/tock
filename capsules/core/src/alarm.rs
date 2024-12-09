@@ -99,20 +99,19 @@ use kernel::grant::AllowRoSize;
 use kernel::grant::AllowRwSize;
 use kernel::grant::UpcallSize;
 
-#[verifier::external_type_specification]
-#[verifier::external_body]
-#[verifier::accept_recursive_types(T)]
-#[verifier::accept_recursive_types(Upcalls)]
-#[verifier::accept_recursive_types(AllowROs)]
-#[verifier::accept_recursive_types(AllowRWs)]
-pub struct ExGrant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>(
-    Grant<T, Upcalls, AllowROs, AllowRWs>,
-);
+// #[verifier::external_type_specification]
+// #[verifier::external_body]
+// #[verifier::accept_recursive_types(T)]
+// #[verifier::accept_recursive_types(Upcalls)]
+// #[verifier::accept_recursive_types(AllowROs)]
+// #[verifier::accept_recursive_types(AllowRWs)]
+// pub struct ExGrant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>(
+//     Grant<T, Upcalls, AllowROs, AllowRWs>,
+// );
 
 impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     // VERUS-TODO: To prevent this from being external we might have
     // to model each of these types
-    #[verifier::external]
     pub const fn new(
         alarm: &'a A,
         grant: Grant<
